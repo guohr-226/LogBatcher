@@ -25,6 +25,8 @@ def count_prompt_tokens(prompt, model_name):
         encoder = tiktoken.encoding_for_model('gpt-4o-mini')
     elif model_name == 'gpt-3.5-turbo':
         encoder = tiktoken.encoding_for_model('gpt-3.5-turbo')
+    elif model_name == 'qwen-turbo':
+        encoder = tiktoken.get_encoding('cl100k_base')
     else:
         raise ValueError("Unsupported model: {}".format(model_name))
 
@@ -42,6 +44,8 @@ def count_message_tokens(messages, model_name="gpt-3.5-turbo"):
         encoder = tiktoken.encoding_for_model('gpt-4o-mini')
     elif model_name == 'gpt-3.5-turbo':
         encoder = tiktoken.encoding_for_model('gpt-3.5-turbo')
+    elif model_name == 'qwen-turbo':
+        encoder = tiktoken.get_encoding('cl100k_base')
     else:
         raise ValueError("Unsupported model: {}".format(model_name))
 

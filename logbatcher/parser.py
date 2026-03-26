@@ -24,11 +24,20 @@ class Parser:
             self.client = OpenAI(
                 api_key=self.api_key
             )
+        elif 'qwen-turbo' in self.model:
+            self.api_key = config['api_key_from_openai']
+            self.client = OpenAI(
+                api_key=self.api_key,
+                base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+                timeout=60.0,
+                max_retries=3
+            )
         else:
             self.api_key = config['api_key_from_together']
             self.client = Together(
                 api_key=self.api_key
             )
+        print(f"model: {self.model}, base_url: {self.client.base_url}")
 
     @retry(wait=wait_random_exponential(min=1, max=8), stop=stop_after_attempt(10))
     def chat(self, messages):
