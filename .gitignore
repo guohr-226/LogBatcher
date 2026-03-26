@@ -11,3 +11,6 @@ tools.ipynb
 datasets/loghub-2.0/*
 demo_rs.py
 *.ipynb
+
+config.json
+tests/test.py
