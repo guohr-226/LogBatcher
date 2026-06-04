@@ -24,12 +24,28 @@ class Parser:
             self.client = OpenAI(
                 api_key=self.api_key
             )
-        elif 'qwen-turbo' in self.model:
+        elif 'qwen' in self.model:
             self.api_key = config['api_key_from_openai']
             self.client = OpenAI(
                 api_key=self.api_key,
                 base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
                 timeout=60.0,
+                max_retries=3
+            )
+        elif 'r2r' in self.model:
+            self.api_key = "EMPTY"
+            self.client = OpenAI(
+                api_key=self.api_key,
+                base_url="http://localhost:30000/v1",
+                # timeout=60.0,
+                max_retries=3
+            )
+        elif 'qwen-local' in self.model:
+            self.api_key = "EMPTY"
+            self.client = OpenAI(
+                api_key=self.api_key,
+                base_url="http://localhost:30001/v1",
+                # timeout=60.0,
                 max_retries=3
             )
         else:

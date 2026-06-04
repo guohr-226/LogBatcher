@@ -1,10 +1,20 @@
 import argparse
 import json
 import os
+import sys
 import pandas as pd
+from tqdm import tqdm
 from logbatcher.parser import Parser
 from logbatcher.util import generate_logformat_regex, log_to_dataframe
 from logbatcher.parsing_base import single_dataset_paring
+
+USE_PROGRESS_BAR = sys.stdout.isatty() and sys.stderr.isatty()
+
+def progress_write(message):
+    if USE_PROGRESS_BAR:
+        tqdm.write(message)
+    else:
+        print(message, flush=True)
 
 def set_args():
     parser = argparse.ArgumentParser()
@@ -35,11 +45,22 @@ if __name__ == "__main__":
     with open('config.json', 'r') as f:
         config = json.load(f)
     parser = Parser(args.model, output_folder, config)
-    for index, dataset in enumerate(datasets):
+    print(f"Benchmark output directory: {output_dir}", flush=True)
+    dataset_iter = tqdm(
+        datasets,
+        desc="Datasets",
+        unit="dataset",
+        disable=not USE_PROGRESS_BAR,
+        dynamic_ncols=USE_PROGRESS_BAR
+    )
+    for index, dataset in enumerate(dataset_iter):
+        if USE_PROGRESS_BAR:
+            dataset_iter.set_postfix_str(dataset)
         if os.path.exists(f'{output_dir}{dataset}_full.log_structured.csv'):
-            print(f'{dataset} has been parsed, skip it.')
+            progress_write(f'{dataset} has been parsed, skip it.')
             continue
-        structured_log_file = f'datasets/loghub-2.0/{dataset}/{dataset}_full.log_structured.csv'
+        progress_write(f'[{index + 1}/{len(datasets)}] Start dataset {dataset}')
+        structured_log_file = f'datasets/sample10k_dataset/{dataset}/{dataset}_full.log_structured.csv'
         
         log_file_format = 'structured'
         if log_file_format == 'structured':

@@ -61,7 +61,7 @@ datasets = [
 
 if __name__ == "__main__":
     args = common_args()
-    input_dir = "../datasets/loghub-2.0/"
+    input_dir = "../datasets/sample10k_dataset/"
     output_dir = f"../outputs/parser/{args.config}" 
 
     if not os.path.exists(output_dir):

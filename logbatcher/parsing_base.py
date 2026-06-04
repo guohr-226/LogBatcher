@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 import time
 import pandas as pd
 from collections import Counter
@@ -9,6 +10,17 @@ from logbatcher.cluster import Cluster,tokenize, vectorize, cluster, reassign_cl
 from logbatcher.additional_cluster import hierichical_clustering,meanshift_clustering
 from logbatcher.util import verify_template
 from logbatcher.parsing_cache import ParsingCache
+
+USE_PROGRESS_BAR = sys.stdout.isatty() and sys.stderr.isatty()
+
+def _elapsed(start_time):
+    return f"{time.time() - start_time:.2f}s"
+
+def _progress(message):
+    if USE_PROGRESS_BAR:
+        tqdm.write(message)
+    else:
+        print(message, flush=True)
 
 def single_dataset_paring(dataset, contents, output_dir, parser, batch_size = 10, chunk_size = 10000, clustering_method = 'dbscan', debug=True):
 
@@ -25,7 +37,15 @@ def single_dataset_paring(dataset, contents, output_dir, parser, batch_size = 10
     
     # Parsing
     t1 = time.time()
-    iterable = tqdm(enumerate(logs), total=len(logs), unit="log")
+    chunk_id = 0
+    iterable = tqdm(
+        enumerate(logs),
+        total=len(logs),
+        unit="log",
+        desc=f"{dataset} logs",
+        disable=not USE_PROGRESS_BAR,
+        dynamic_ncols=USE_PROGRESS_BAR
+    )
     for index, log in iterable:
 
         match_results = caching.match_event(log)
@@ -40,20 +60,47 @@ def single_dataset_paring(dataset, contents, output_dir, parser, batch_size = 10
         # Parsing with LLM
         if len(log_chunk) == chunk_size or (len(log_chunk)!=0 and index == len(logs) - 1):
             # parsing start
-            print(f'Parsing {len(log_chunk)} logs...') if debug else None
+            chunk_id += 1
+            chunk_start = time.time()
+            chunk_range = f"{log_chunk_index[0]}-{log_chunk_index[-1]}"
+            if debug:
+                _progress(
+                    f'[{dataset}] chunk {chunk_id} start: '
+                    f'logs={len(log_chunk)}, source_index={chunk_range}, '
+                    f'cache_hits={caching.hit_num}, templates={len(set(caching.template_list))}'
+                )
             if clustering_method == 'dbscan':
                 # tokenize -> vectorize -> cluster -> reassign_clusters
+                cluster_stage_start = time.time()
+                _progress(f'[{dataset}] chunk {chunk_id}: tokenize/vectorize/dbscan start') if debug else None
                 tokenized_logs = [tokenize(log) for log in log_chunk]
                 labels, cluster_nums = cluster(vectorize(tokenized_logs))
                 labels, cluster_nums = reassign_clusters(labels, cluster_nums, tokenized_logs)
+                _progress(
+                    f'[{dataset}] chunk {chunk_id}: dbscan done in {_elapsed(cluster_stage_start)}, '
+                    f'clusters={cluster_nums}'
+                ) if debug else None
             elif clustering_method == 'hierarchical':
+                cluster_stage_start = time.time()
+                _progress(f'[{dataset}] chunk {chunk_id}: hierarchical clustering start') if debug else None
                 labels, cluster_nums = hierichical_clustering(log_chunk)
+                _progress(
+                    f'[{dataset}] chunk {chunk_id}: hierarchical clustering done in {_elapsed(cluster_stage_start)}, '
+                    f'clusters={cluster_nums}'
+                ) if debug else None
             elif clustering_method == 'meanshift':
+                cluster_stage_start = time.time()
+                _progress(f'[{dataset}] chunk {chunk_id}: meanshift clustering start') if debug else None
                 labels, cluster_nums = meanshift_clustering(log_chunk)
+                _progress(
+                    f'[{dataset}] chunk {chunk_id}: meanshift clustering done in {_elapsed(cluster_stage_start)}, '
+                    f'clusters={cluster_nums}'
+                ) if debug else None
             else:
                 raise ValueError('Invalid clustering method')
 
             # create clusters
+            build_stage_start = time.time()
             clusters = [None for _ in range(cluster_nums)]
             for index, label in enumerate(labels):
                 if clusters[label] is None:
@@ -65,11 +112,41 @@ def single_dataset_paring(dataset, contents, output_dir, parser, batch_size = 10
 
             # batching
             [cluster.batching(batch_size) for cluster in clusters]
+            top_sizes = [len(cluster.logs) for cluster in clusters[:5]]
+            _progress(
+                f'[{dataset}] chunk {chunk_id}: cluster objects ready in {_elapsed(build_stage_start)}, '
+                f'top_sizes={top_sizes}'
+            ) if debug else None
 
             # parsing
             # print(len(clusters), 'clusters identified') if debug else None  
-            for index, old_cluster in enumerate(clusters):
+            cluster_index = 0
+            cluster_bar = tqdm(
+                total=len(clusters),
+                unit="cluster",
+                desc=f"{dataset} chunk {chunk_id} LLM",
+                leave=False,
+                disable=not USE_PROGRESS_BAR,
+                dynamic_ncols=USE_PROGRESS_BAR
+            )
+            while cluster_index < len(clusters):
+                if cluster_bar.total != len(clusters):
+                    cluster_bar.total = len(clusters)
+                    cluster_bar.refresh()
+                old_cluster = clusters[cluster_index]
+                if debug:
+                    _progress(
+                        f'[{dataset}] chunk {chunk_id} cluster {cluster_index + 1}/{len(clusters)} '
+                        f'start: size={old_cluster.size}, samples={len(old_cluster.batch_logs)}, '
+                        f'llm_calls={parser.token_list[0]}, templates={len(set(caching.template_list))}'
+                    )
+                llm_start = time.time()
                 template, old_cluster, new_cluster = parser.get_responce(old_cluster, cache_base = caching)
+                if debug:
+                    _progress(
+                        f'[{dataset}] chunk {chunk_id} cluster {cluster_index + 1} done in {_elapsed(llm_start)}: '
+                        f'template={template}'
+                    )
                 # update clusters
                 cluster_nums += process_new_cluster(new_cluster, clusters, batch_size)
                 refer_log = old_cluster.logs[0]
@@ -88,6 +165,14 @@ def single_dataset_paring(dataset, contents, output_dir, parser, batch_size = 10
                     id = caching.template_list.index(template)
                 for index in old_cluster.indexs:
                     outputs_index[index] = id
+                cluster_index += 1
+                cluster_bar.update(1)
+            cluster_bar.close()
+            _progress(
+                f'[{dataset}] chunk {chunk_id} done in {_elapsed(chunk_start)}: '
+                f'total_clusters={len(clusters)}, templates={len(set(caching.template_list))}, '
+                f'llm_calls={parser.token_list[0]}'
+            ) if debug else None
             log_chunk = []
             log_chunk_index = []
     

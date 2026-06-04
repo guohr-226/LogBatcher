@@ -1,0 +1,308 @@
+
+=== Evaluation on Proxifier ===
+../outputs/parser/qwen3.5-35b-a3b/Proxifier_full.log_structured.csv
+Start to align null values and inconsistent labels
+  0%|          | 0/10000 [00:00<?, ?it/s] 94%|█████████▎| 9369/10000 [00:00<00:00, 93686.29it/s]100%|██████████| 10000/10000 [00:00<00:00, 91430.96it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s] 93%|█████████▎| 9348/10000 [00:00<00:00, 93479.87it/s]100%|██████████| 10000/10000 [00:00<00:00, 91372.20it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 253280.76it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 252958.45it/s]
+Calculating Edit Distance....
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 1108929.49it/s]
+Normalized_Edit_distance (NED): 0.8713, ED: 8.4546,
+Grouping Accuracy calculation done. [Time taken: 0.010]
+Start compute grouping accuracy
+  0%|          | 0/11 [00:00<?, ?it/s]100%|██████████| 11/11 [00:00<00:00, 1224.52it/s]
+Grouping_Accuracy (GA): 0.5211, FGA: 0.7368,
+Grouping Accuracy calculation done. [Time taken: 0.086]
+Parsing_Accuracy (PA): 0.5211
+Parsing Accuracy calculation done. [Time taken: 0.002]
+  0%|          | 0/8 [00:00<?, ?it/s]100%|██████████| 8/8 [00:00<00:00, 8422.30it/s]
+PTA: 0.8750, RTA: 0.6364 FTA: 0.7368
+Identify : 8, Groundtruth : 11
+Template-level accuracy calculation done. [Time taken: 0.006]
+
+=== Evaluation on Linux ===
+../outputs/parser/qwen3.5-35b-a3b/Linux_full.log_structured.csv
+Start to align null values and inconsistent labels
+  0%|          | 0/10000 [00:00<?, ?it/s] 74%|███████▍  | 7424/10000 [00:00<00:00, 74233.17it/s]100%|██████████| 10000/10000 [00:00<00:00, 76068.52it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s] 92%|█████████▏| 9226/10000 [00:00<00:00, 92257.89it/s]100%|██████████| 10000/10000 [00:00<00:00, 89779.19it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 235268.94it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 243029.71it/s]
+Calculating Edit Distance....
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 117153.77it/s]
+Normalized_Edit_distance (NED): 0.9865, ED: 0.4747,
+Grouping Accuracy calculation done. [Time taken: 0.086]
+Start compute grouping accuracy
+  0%|          | 0/341 [00:00<?, ?it/s] 52%|█████▏    | 177/341 [00:00<00:00, 1769.20it/s]100%|██████████| 341/341 [00:00<00:00, 1781.79it/s]
+Grouping_Accuracy (GA): 0.9448, FGA: 0.8750,
+Grouping Accuracy calculation done. [Time taken: 0.198]
+Parsing_Accuracy (PA): 0.9153
+Parsing Accuracy calculation done. [Time taken: 0.002]
+  0%|          | 0/395 [00:00<?, ?it/s]100%|██████████| 395/395 [00:00<00:00, 47884.33it/s]
+PTA: 0.6962, RTA: 0.8065 FTA: 0.7473
+Identify : 395, Groundtruth : 341
+Template-level accuracy calculation done. [Time taken: 0.014]
+
+=== Evaluation on Apache ===
+../outputs/parser/qwen3.5-35b-a3b/Apache_full.log_structured.csv
+Start to align null values and inconsistent labels
+  0%|          | 0/10000 [00:00<?, ?it/s] 96%|█████████▌| 9594/10000 [00:00<00:00, 95930.49it/s]100%|██████████| 10000/10000 [00:00<00:00, 93718.46it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s] 96%|█████████▌| 9556/10000 [00:00<00:00, 95557.81it/s]100%|██████████| 10000/10000 [00:00<00:00, 92680.95it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 250783.51it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 253478.21it/s]
+Calculating Edit Distance....
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 411726.99it/s]
+Normalized_Edit_distance (NED): 0.9969, ED: 0.1874,
+Grouping Accuracy calculation done. [Time taken: 0.025]
+Start compute grouping accuracy
+  0%|          | 0/30 [00:00<?, ?it/s]100%|██████████| 30/30 [00:00<00:00, 1702.10it/s]
+Grouping_Accuracy (GA): 0.9937, FGA: 0.8615,
+Grouping Accuracy calculation done. [Time taken: 0.023]
+Parsing_Accuracy (PA): 0.9903
+Parsing Accuracy calculation done. [Time taken: 0.002]
+  0%|          | 0/35 [00:00<?, ?it/s]100%|██████████| 35/35 [00:00<00:00, 23877.79it/s]
+PTA: 0.6286, RTA: 0.7333 FTA: 0.6769
+Identify : 35, Groundtruth : 30
+Template-level accuracy calculation done. [Time taken: 0.006]
+
+=== Evaluation on Zookeeper ===
+../outputs/parser/qwen3.5-35b-a3b/Zookeeper_full.log_structured.csv
+Start to align null values and inconsistent labels
+  0%|          | 0/10000 [00:00<?, ?it/s] 94%|█████████▍| 9376/10000 [00:00<00:00, 93754.72it/s]100%|██████████| 10000/10000 [00:00<00:00, 91879.00it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s] 99%|█████████▉| 9910/10000 [00:00<00:00, 99099.15it/s]100%|██████████| 10000/10000 [00:00<00:00, 96684.61it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 247896.17it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 254709.66it/s]
+Calculating Edit Distance....
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 351378.86it/s]
+Normalized_Edit_distance (NED): 0.9979, ED: 0.1448,
+Grouping Accuracy calculation done. [Time taken: 0.029]
+Start compute grouping accuracy
+  0%|          | 0/89 [00:00<?, ?it/s]100%|██████████| 89/89 [00:00<00:00, 1716.27it/s]
+Grouping_Accuracy (GA): 0.9924, FGA: 0.9663,
+Grouping Accuracy calculation done. [Time taken: 0.057]
+Parsing_Accuracy (PA): 0.9673
+Parsing Accuracy calculation done. [Time taken: 0.002]
+  0%|          | 0/89 [00:00<?, ?it/s]100%|██████████| 89/89 [00:00<00:00, 33255.51it/s]
+PTA: 0.8764, RTA: 0.8764 FTA: 0.8764
+Identify : 89, Groundtruth : 89
+Template-level accuracy calculation done. [Time taken: 0.007]
+
+=== Evaluation on Hadoop ===
+../outputs/parser/qwen3.5-35b-a3b/Hadoop_full.log_structured.csv
+Start to align null values and inconsistent labels
+  0%|          | 0/10000 [00:00<?, ?it/s] 75%|███████▍  | 7492/10000 [00:00<00:00, 74913.11it/s]100%|██████████| 10000/10000 [00:00<00:00, 76977.50it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s] 88%|████████▊ | 8808/10000 [00:00<00:00, 87900.48it/s]100%|██████████| 10000/10000 [00:00<00:00, 86569.56it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 235595.35it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 243368.15it/s]
+Calculating Edit Distance....
+  0%|          | 0/10000 [00:00<?, ?it/s] 12%|█▏        | 1218/10000 [00:00<00:00, 10105.80it/s] 34%|███▎      | 3358/10000 [00:00<00:00, 15187.12it/s] 78%|███████▊  | 7782/10000 [00:00<00:00, 25762.05it/s]100%|██████████| 10000/10000 [00:00<00:00, 26140.32it/s]
+Normalized_Edit_distance (NED): 0.9526, ED: 3.1110,
+Grouping Accuracy calculation done. [Time taken: 0.383]
+Start compute grouping accuracy
+  0%|          | 0/237 [00:00<?, ?it/s] 76%|███████▋  | 181/237 [00:00<00:00, 1807.70it/s]100%|██████████| 237/237 [00:00<00:00, 1802.28it/s]
+Grouping_Accuracy (GA): 0.9352, FGA: 0.9010,
+Grouping Accuracy calculation done. [Time taken: 0.138]
+Parsing_Accuracy (PA): 0.8408
+Parsing Accuracy calculation done. [Time taken: 0.002]
+  0%|          | 0/258 [00:00<?, ?it/s]100%|██████████| 258/258 [00:00<00:00, 43553.51it/s]
+PTA: 0.6628, RTA: 0.7215 FTA: 0.6909
+Identify : 258, Groundtruth : 237
+Template-level accuracy calculation done. [Time taken: 0.011]
+
+=== Evaluation on HealthApp ===
+../outputs/parser/qwen3.5-35b-a3b/HealthApp_full.log_structured.csv
+Start to align null values and inconsistent labels
+  0%|          | 0/10000 [00:00<?, ?it/s] 90%|█████████ | 9004/10000 [00:00<00:00, 90033.65it/s]100%|██████████| 10000/10000 [00:00<00:00, 86916.51it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s] 96%|█████████▌| 9599/10000 [00:00<00:00, 95985.74it/s]100%|██████████| 10000/10000 [00:00<00:00, 93760.57it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 244640.01it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 248604.38it/s]
+Calculating Edit Distance....
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 190795.88it/s]
+Normalized_Edit_distance (NED): 0.9687, ED: 1.9063,
+Grouping Accuracy calculation done. [Time taken: 0.053]
+Start compute grouping accuracy
+  0%|          | 0/156 [00:00<?, ?it/s]100%|██████████| 156/156 [00:00<00:00, 1764.95it/s]
+Grouping_Accuracy (GA): 0.9428, FGA: 0.9714,
+Grouping Accuracy calculation done. [Time taken: 0.094]
+Parsing_Accuracy (PA): 0.9230
+Parsing Accuracy calculation done. [Time taken: 0.002]
+  0%|          | 0/159 [00:00<?, ?it/s]100%|██████████| 159/159 [00:00<00:00, 42302.21it/s]
+PTA: 0.8616, RTA: 0.8782 FTA: 0.8698
+Identify : 159, Groundtruth : 156
+Template-level accuracy calculation done. [Time taken: 0.009]
+
+=== Evaluation on OpenStack ===
+../outputs/parser/qwen3.5-35b-a3b/OpenStack_full.log_structured.csv
+Start to align null values and inconsistent labels
+  0%|          | 0/10000 [00:00<?, ?it/s] 52%|█████▏    | 5164/10000 [00:00<00:00, 51636.97it/s]100%|██████████| 10000/10000 [00:00<00:00, 52691.00it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s] 55%|█████▍    | 5486/10000 [00:00<00:00, 54851.03it/s]100%|██████████| 10000/10000 [00:00<00:00, 54193.83it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 152443.09it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 153792.99it/s]
+Calculating Edit Distance....
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 328913.43it/s]
+Normalized_Edit_distance (NED): 0.9953, ED: 0.3269,
+Grouping Accuracy calculation done. [Time taken: 0.032]
+Start compute grouping accuracy
+  0%|          | 0/48 [00:00<?, ?it/s]100%|██████████| 48/48 [00:00<00:00, 1014.49it/s]
+Grouping_Accuracy (GA): 1.0000, FGA: 1.0000,
+Grouping Accuracy calculation done. [Time taken: 0.057]
+Parsing_Accuracy (PA): 0.9812
+Parsing Accuracy calculation done. [Time taken: 0.003]
+  0%|          | 0/48 [00:00<?, ?it/s]100%|██████████| 48/48 [00:00<00:00, 17822.82it/s]
+PTA: 0.8958, RTA: 0.8958 FTA: 0.8958
+Identify : 48, Groundtruth : 48
+Template-level accuracy calculation done. [Time taken: 0.010]
+
+=== Evaluation on HPC ===
+../outputs/parser/qwen3.5-35b-a3b/HPC_full.log_structured.csv
+Start to align null values and inconsistent labels
+  0%|          | 0/10000 [00:00<?, ?it/s] 61%|██████    | 6079/10000 [00:00<00:00, 60785.86it/s]100%|██████████| 10000/10000 [00:00<00:00, 58972.62it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s] 63%|██████▎   | 6300/10000 [00:00<00:00, 62994.95it/s]100%|██████████| 10000/10000 [00:00<00:00, 65292.38it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 246823.95it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 255884.43it/s]
+Calculating Edit Distance....
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 1918185.31it/s]
+Normalized_Edit_distance (NED): 0.9978, ED: 0.1131,
+Grouping Accuracy calculation done. [Time taken: 0.006]
+Start compute grouping accuracy
+  0%|          | 0/74 [00:00<?, ?it/s]100%|██████████| 74/74 [00:00<00:00, 1752.57it/s]
+Grouping_Accuracy (GA): 0.9930, FGA: 0.9404,
+Grouping Accuracy calculation done. [Time taken: 0.048]
+Parsing_Accuracy (PA): 0.9915
+Parsing Accuracy calculation done. [Time taken: 0.002]
+  0%|          | 0/77 [00:00<?, ?it/s]100%|██████████| 77/77 [00:00<00:00, 31425.65it/s]
+PTA: 0.9221, RTA: 0.9595 FTA: 0.9404
+Identify : 77, Groundtruth : 74
+Template-level accuracy calculation done. [Time taken: 0.008]
+
+=== Evaluation on Mac ===
+../outputs/parser/qwen3.5-35b-a3b/Mac_full.log_structured.csv
+Start to align null values and inconsistent labels
+  0%|          | 0/10000 [00:00<?, ?it/s] 47%|████▋     | 4737/10000 [00:00<00:00, 47367.79it/s]100%|██████████| 10000/10000 [00:00<00:00, 52000.70it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s] 67%|██████▋   | 6652/10000 [00:00<00:00, 66482.81it/s]100%|██████████| 10000/10000 [00:00<00:00, 67815.89it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 184991.95it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 204060.68it/s]
+Calculating Edit Distance....
+  0%|          | 0/10000 [00:00<?, ?it/s]  1%|          | 77/10000 [00:00<00:12, 763.82it/s]  2%|▏         | 154/10000 [00:00<00:13, 746.66it/s]  9%|▉         | 878/10000 [00:00<00:04, 2181.45it/s] 11%|█         | 1121/10000 [00:00<00:03, 2241.57it/s] 13%|█▎        | 1322/10000 [00:00<00:04, 2144.87it/s] 15%|█▌        | 1519/10000 [00:00<00:06, 1328.63it/s] 18%|█▊        | 1764/10000 [00:01<00:06, 1348.86it/s] 19%|█▉        | 1912/10000 [00:01<00:06, 1338.84it/s] 27%|██▋       | 2691/10000 [00:01<00:02, 2473.70it/s] 35%|███▍      | 3473/10000 [00:01<00:01, 3416.85it/s] 56%|█████▌    | 5589/10000 [00:01<00:00, 7341.50it/s] 64%|██████▍   | 6450/10000 [00:01<00:00, 5411.87it/s] 71%|███████▏  | 7146/10000 [00:02<00:00, 2974.27it/s] 77%|███████▋  | 7669/10000 [00:02<00:00, 2904.57it/s] 98%|█████████▊| 9807/10000 [00:02<00:00, 4441.65it/s]100%|██████████| 10000/10000 [00:02<00:00, 3356.36it/s]
+Normalized_Edit_distance (NED): 0.9409, ED: 5.2928,
+Grouping Accuracy calculation done. [Time taken: 2.980]
+Start compute grouping accuracy
+  0%|          | 0/626 [00:00<?, ?it/s] 29%|██▉       | 184/626 [00:00<00:00, 1839.79it/s] 59%|█████▉    | 368/626 [00:00<00:00, 1832.17it/s] 88%|████████▊ | 552/626 [00:00<00:00, 1816.08it/s]100%|██████████| 626/626 [00:00<00:00, 1817.36it/s]
+Grouping_Accuracy (GA): 0.9203, FGA: 0.9341,
+Grouping Accuracy calculation done. [Time taken: 0.398]
+Parsing_Accuracy (PA): 0.6447
+Parsing Accuracy calculation done. [Time taken: 0.002]
+  0%|          | 0/648 [00:00<?, ?it/s]100%|██████████| 648/648 [00:00<00:00, 50383.90it/s]
+PTA: 0.6481, RTA: 0.6709 FTA: 0.6593
+Identify : 648, Groundtruth : 626
+Template-level accuracy calculation done. [Time taken: 0.020]
+
+=== Evaluation on OpenSSH ===
+../outputs/parser/qwen3.5-35b-a3b/OpenSSH_full.log_structured.csv
+Start to align null values and inconsistent labels
+  0%|          | 0/10000 [00:00<?, ?it/s] 92%|█████████▏| 9226/10000 [00:00<00:00, 92252.17it/s]100%|██████████| 10000/10000 [00:00<00:00, 90149.87it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s] 94%|█████████▍| 9440/10000 [00:00<00:00, 94397.61it/s]100%|██████████| 10000/10000 [00:00<00:00, 92280.06it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 255692.56it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 255608.41it/s]
+Calculating Edit Distance....
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 505739.99it/s]
+Normalized_Edit_distance (NED): 0.9998, ED: 0.0196,
+Grouping Accuracy calculation done. [Time taken: 0.021]
+Start compute grouping accuracy
+  0%|          | 0/38 [00:00<?, ?it/s]100%|██████████| 38/38 [00:00<00:00, 1666.56it/s]
+Grouping_Accuracy (GA): 1.0000, FGA: 1.0000,
+Grouping Accuracy calculation done. [Time taken: 0.028]
+Parsing_Accuracy (PA): 0.9985
+Parsing Accuracy calculation done. [Time taken: 0.002]
+  0%|          | 0/38 [00:00<?, ?it/s]100%|██████████| 38/38 [00:00<00:00, 26913.80it/s]
+PTA: 0.8947, RTA: 0.8947 FTA: 0.8947
+Identify : 38, Groundtruth : 38
+Template-level accuracy calculation done. [Time taken: 0.006]
+
+=== Evaluation on Spark ===
+../outputs/parser/qwen3.5-35b-a3b/Spark_full.log_structured.csv
+Start to align null values and inconsistent labels
+  0%|          | 0/10000 [00:00<?, ?it/s] 79%|███████▊  | 7860/10000 [00:00<00:00, 78593.89it/s]100%|██████████| 10000/10000 [00:00<00:00, 76558.65it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s] 90%|█████████ | 9006/10000 [00:00<00:00, 90052.79it/s]100%|██████████| 10000/10000 [00:00<00:00, 87830.55it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 236851.25it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 247828.79it/s]
+Calculating Edit Distance....
+  0%|          | 0/10000 [00:00<?, ?it/s] 13%|█▎        | 1299/10000 [00:00<00:01, 7961.90it/s] 42%|████▏     | 4181/10000 [00:00<00:00, 16372.79it/s]100%|██████████| 10000/10000 [00:00<00:00, 27102.92it/s]
+Normalized_Edit_distance (NED): 0.9775, ED: 1.5670,
+Grouping Accuracy calculation done. [Time taken: 0.370]
+Start compute grouping accuracy
+  0%|          | 0/236 [00:00<?, ?it/s] 75%|███████▌  | 177/236 [00:00<00:00, 1763.87it/s]100%|██████████| 236/236 [00:00<00:00, 1777.75it/s]
+Grouping_Accuracy (GA): 0.9126, FGA: 0.9576,
+Grouping Accuracy calculation done. [Time taken: 0.141]
+Parsing_Accuracy (PA): 0.8801
+Parsing Accuracy calculation done. [Time taken: 0.002]
+  0%|          | 0/236 [00:00<?, ?it/s]100%|██████████| 236/236 [00:00<00:00, 45345.90it/s]
+PTA: 0.7627, RTA: 0.7627 FTA: 0.7627
+Identify : 236, Groundtruth : 236
+Template-level accuracy calculation done. [Time taken: 0.011]
+
+=== Evaluation on Thunderbird ===
+../outputs/parser/qwen3.5-35b-a3b/Thunderbird_full.log_structured.csv
+Start to align null values and inconsistent labels
+  0%|          | 0/10000 [00:00<?, ?it/s] 43%|████▎     | 4327/10000 [00:00<00:00, 43190.34it/s] 88%|████████▊ | 8841/10000 [00:00<00:00, 44327.53it/s]100%|██████████| 10000/10000 [00:00<00:00, 45825.01it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s] 64%|██████▍   | 6389/10000 [00:00<00:00, 63848.66it/s]100%|██████████| 10000/10000 [00:00<00:00, 67208.33it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 196945.27it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 227977.32it/s]
+Calculating Edit Distance....
+  0%|          | 0/10000 [00:00<?, ?it/s]  3%|▎         | 259/10000 [00:00<00:03, 2454.45it/s]  8%|▊         | 774/10000 [00:00<00:02, 3917.81it/s] 36%|███▌      | 3577/10000 [00:00<00:00, 14553.76it/s] 50%|█████     | 5050/10000 [00:00<00:00, 10439.94it/s] 65%|██████▌   | 6517/10000 [00:00<00:00, 11438.41it/s] 78%|███████▊  | 7768/10000 [00:00<00:00, 10554.12it/s]100%|██████████| 10000/10000 [00:00<00:00, 11839.92it/s]
+Normalized_Edit_distance (NED): 0.9200, ED: 6.2906,
+Grouping Accuracy calculation done. [Time taken: 0.845]
+Start compute grouping accuracy
+  0%|          | 0/1241 [00:00<?, ?it/s] 15%|█▍        | 186/1241 [00:00<00:00, 1858.76it/s] 30%|██▉       | 372/1241 [00:00<00:00, 1821.23it/s] 45%|████▍     | 555/1241 [00:00<00:00, 1813.67it/s] 59%|█████▉    | 737/1241 [00:00<00:00, 1811.76it/s] 74%|███████▍  | 919/1241 [00:00<00:00, 1806.80it/s] 89%|████████▊ | 1100/1241 [00:00<00:00, 1804.80it/s]100%|██████████| 1241/1241 [00:00<00:00, 1808.44it/s]
+Grouping_Accuracy (GA): 0.8544, FGA: 0.9402,
+Grouping Accuracy calculation done. [Time taken: 0.696]
+Parsing_Accuracy (PA): 0.6205
+Parsing Accuracy calculation done. [Time taken: 0.002]
+  0%|          | 0/1269 [00:00<?, ?it/s]100%|██████████| 1269/1269 [00:00<00:00, 53159.80it/s]
+PTA: 0.6667, RTA: 0.6817 FTA: 0.6741
+Identify : 1269, Groundtruth : 1241
+Template-level accuracy calculation done. [Time taken: 0.032]
+
+=== Evaluation on BGL ===
+../outputs/parser/qwen3.5-35b-a3b/BGL_full.log_structured.csv
+Start to align null values and inconsistent labels
+  0%|          | 0/10000 [00:00<?, ?it/s] 81%|████████  | 8093/10000 [00:00<00:00, 80927.95it/s]100%|██████████| 10000/10000 [00:00<00:00, 74716.70it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s] 91%|█████████▏| 9141/10000 [00:00<00:00, 91404.42it/s]100%|██████████| 10000/10000 [00:00<00:00, 87972.40it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 231966.60it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 242180.74it/s]
+Calculating Edit Distance....
+  0%|          | 0/10000 [00:00<?, ?it/s] 33%|███▎      | 3276/10000 [00:00<00:00, 32165.84it/s] 65%|██████▍   | 6493/10000 [00:00<00:00, 19968.02it/s] 88%|████████▊ | 8844/10000 [00:00<00:00, 20397.52it/s]100%|██████████| 10000/10000 [00:00<00:00, 19996.34it/s]
+Normalized_Edit_distance (NED): 0.9888, ED: 1.6710,
+Grouping Accuracy calculation done. [Time taken: 0.501]
+Start compute grouping accuracy
+  0%|          | 0/320 [00:00<?, ?it/s] 56%|█████▋    | 180/320 [00:00<00:00, 1790.48it/s]100%|██████████| 320/320 [00:00<00:00, 1792.88it/s]
+Grouping_Accuracy (GA): 0.9798, FGA: 0.9248,
+Grouping Accuracy calculation done. [Time taken: 0.185]
+Parsing_Accuracy (PA): 0.9565
+Parsing Accuracy calculation done. [Time taken: 0.002]
+  0%|          | 0/318 [00:00<?, ?it/s]100%|██████████| 318/318 [00:00<00:00, 47255.58it/s]
+PTA: 0.8208, RTA: 0.8156 FTA: 0.8182
+Identify : 318, Groundtruth : 320
+Template-level accuracy calculation done. [Time taken: 0.012]
+
+=== Evaluation on HDFS ===
+../outputs/parser/qwen3.5-35b-a3b/HDFS_full.log_structured.csv
+Start to align null values and inconsistent labels
+  0%|          | 0/10000 [00:00<?, ?it/s] 89%|████████▉ | 8906/10000 [00:00<00:00, 89057.96it/s]100%|██████████| 10000/10000 [00:00<00:00, 87566.68it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s] 94%|█████████▍| 9419/10000 [00:00<00:00, 94181.78it/s]100%|██████████| 10000/10000 [00:00<00:00, 91983.38it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 245760.96it/s]
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 251585.28it/s]
+Calculating Edit Distance....
+  0%|          | 0/10000 [00:00<?, ?it/s]100%|██████████| 10000/10000 [00:00<00:00, 501303.25it/s]
+Normalized_Edit_distance (NED): 1.0000, ED: 0.0006,
+Grouping Accuracy calculation done. [Time taken: 0.021]
+Start compute grouping accuracy
+  0%|          | 0/46 [00:00<?, ?it/s]100%|██████████| 46/46 [00:00<00:00, 1692.96it/s]
+Grouping_Accuracy (GA): 1.0000, FGA: 1.0000,
+Grouping Accuracy calculation done. [Time taken: 0.032]
+Parsing_Accuracy (PA): 0.9999
+Parsing Accuracy calculation done. [Time taken: 0.002]
+  0%|          | 0/46 [00:00<?, ?it/s]100%|██████████| 46/46 [00:00<00:00, 27665.33it/s]
+PTA: 0.9783, RTA: 0.9783 FTA: 0.9783
+Identify : 46, Groundtruth : 46
+Template-level accuracy calculation done. [Time taken: 0.006]
