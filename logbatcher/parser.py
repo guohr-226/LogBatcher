@@ -1,7 +1,6 @@
 import time
 from openai import OpenAI
 from together import Together
-from tenacity import retry, stop_after_attempt, wait_random_exponential
 from logbatcher.cluster import Cluster
 from logbatcher.postprocess import post_process
 from logbatcher.matching import prune_from_cluster
@@ -9,6 +8,9 @@ from logbatcher.postprocess import correct_single_template
 from logbatcher.util import verify_template, count_message_tokens
 
 class Parser:
+
+    LLM_REQUEST_TIMEOUT_SEC = 300
+    LLM_MAX_ATTEMPTS = 3
 
     def __init__(self, model, theme, config):
 
@@ -55,14 +57,42 @@ class Parser:
             )
         print(f"model: {self.model}, base_url: {self.client.base_url}")
 
-    @retry(wait=wait_random_exponential(min=1, max=8), stop=stop_after_attempt(10))
-    def chat(self, messages):
+    def _chat_once(self, messages):
         response = self.client.chat.completions.create(
             model=self.model,
             messages=messages,
             temperature=0.0,
         )
         return response.choices[0].message.content.strip('\n')
+
+    def chat(self, messages):
+        last_error = None
+        for attempt in range(1, self.LLM_MAX_ATTEMPTS + 1):
+            t0 = time.time()
+            try:
+                answer = self._chat_once(messages)
+                latency = time.time() - t0
+                if latency > self.LLM_REQUEST_TIMEOUT_SEC:
+                    print(
+                        f"Invalid LLM response: latency {latency:.3f}s exceeds "
+                        f"{self.LLM_REQUEST_TIMEOUT_SEC}s, retry "
+                        f"{attempt}/{self.LLM_MAX_ATTEMPTS}."
+                    )
+                    continue
+                return answer, latency
+            except Exception as e:
+                latency = time.time() - t0
+                last_error = e
+                print(
+                    f"LLM request failed: attempt {attempt}/{self.LLM_MAX_ATTEMPTS}, "
+                    f"latency {latency:.3f}s, error: {e}"
+                )
+
+        print(
+            f"LLM request abandoned after {self.LLM_MAX_ATTEMPTS} attempts. "
+            f"Last error: {last_error}"
+        )
+        return None, None
 
     def get_responce(self, cluster, cache_base):
 
@@ -99,13 +129,16 @@ class Parser:
             {"role": "user", "content": '\n'.join(f'Log[{i+1}]: `{log}`' for i, log in enumerate(logs))}
         ]
         try:
-            t0 = time.time()
-            answer = self.chat(messages)
+            answer, latency = self.chat(messages)
+            if answer is None:
+                print("LLM request abandoned, use sample_log as fallback.")
+                answer = sample_log
+            else:
+                self.token_list[0] += 1
+                self.token_list[1] += count_message_tokens(messages, 'gpt-4o-mini')
+                self.time_consumption_llm += latency
             print(messages)
             print(answer)
-            self.token_list[0] += 1
-            self.token_list[1] += count_message_tokens(messages, 'gpt-4o-mini')
-            self.time_consumption_llm += (time.time() - t0)
         except Exception as e:
             print("invoke LLM error", e)
             answer = sample_log
