@@ -74,6 +74,79 @@ class ParsingCache(object):
         self.hashing_cache = {}
         self.variable_candidates = []
         self.hit_num = 0
+        self.template_records = {}
+
+    def _ensure_template_record(self, template_id, template):
+        if template_id is None or template_id == "NoMatch" or template_id < 0:
+            return None
+        if template_id not in self.template_records:
+            self.template_records[template_id] = {
+                "template_id": template_id,
+                "template": template,
+                "hit_count": 0,
+                "stable_hit_count": 0,
+                "llm_correction_count": 0,
+                "conflict_count": 0,
+                "router_trigger_count": 0,
+                "routed_token_count": 0,
+                "risk_score": 0.0,
+                "status": "candidate",
+            }
+        else:
+            self.template_records[template_id]["template"] = template
+        return self.template_records[template_id]
+
+    def _update_record_status(self, record):
+        if record["conflict_count"] >= 5:
+            record["status"] = "deprecated"
+        elif record["conflict_count"] >= 3 and record["status"] == "risky":
+            record["status"] = "split_candidate"
+        elif record["risk_score"] >= 0.5 and record["status"] in ("candidate", "stable"):
+            record["status"] = "risky"
+        elif (
+            record["status"] == "candidate"
+            and record["stable_hit_count"] >= 3
+            and record["conflict_count"] == 0
+        ):
+            record["status"] = "stable"
+
+    def update_by_signal(self, signal):
+        if signal.matched_template_id is None:
+            return
+
+        template = None
+        if isinstance(signal.matched_template_id, int) and signal.matched_template_id < len(self.template_list):
+            template = self.template_list[signal.matched_template_id]
+        template = template or signal.slm_template or signal.final_template
+        record = self._ensure_template_record(signal.matched_template_id, template)
+        if record is None:
+            return
+
+        record["hit_count"] += 1
+        record["router_trigger_count"] += signal.router_trigger_count
+        record["routed_token_count"] += signal.routed_token_count
+
+        if signal.llm_used:
+            record["llm_correction_count"] += 1
+
+        if signal.template_changed or signal.conflict:
+            record["conflict_count"] += 1
+            record["risk_score"] += 0.2
+
+        if signal.router_trigger_count > 0:
+            record["risk_score"] += 0.1 * signal.router_trigger_count
+
+        if (
+            signal.cache_match_type in ("exact", "hash", "legacy_cache", "cache")
+            and not signal.llm_used
+            and not signal.template_changed
+            and not signal.conflict
+        ):
+            record["stable_hit_count"] += 1
+            record["risk_score"] = max(0.0, record["risk_score"] - 0.05)
+
+        self._update_record_status(record)
+
     def add_templates(self, event_template, insert=True, relevant_templates=[], refer_log = ''):
 
             # if "<*>" not in event_template:
@@ -138,6 +211,7 @@ class ParsingCache(object):
             template_id,
             refer_log
         )  # statistic length, count of <*>, original_log, template_id
+        self._ensure_template_record(template_id, event_template)
         return template_id
 
     def modify(self, similar_template, event_template, refer_log):

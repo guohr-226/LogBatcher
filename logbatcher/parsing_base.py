@@ -1,3 +1,4 @@
+import csv
 import json
 import os
 import sys
@@ -34,6 +35,7 @@ def single_dataset_paring(dataset, contents, output_dir, parser, batch_size = 10
 
     outputs = [None for _ in range(len(logs))]
     outputs_index = [None for _ in range(len(logs))]
+    cache_matched_logs = 0
     
     # Parsing
     t1 = time.time()
@@ -50,6 +52,7 @@ def single_dataset_paring(dataset, contents, output_dir, parser, batch_size = 10
 
         match_results = caching.match_event(log)
         if match_results[0] != "NoMatch":
+            cache_matched_logs += 1
             # outputs[index] = match_results[0]
             outputs_index[index] = match_results[1]
         else:
@@ -207,8 +210,114 @@ def single_dataset_paring(dataset, contents, output_dir, parser, batch_size = 10
         'InvocatingTime': parser.time_consumption_llm.__round__(3),
         'ParsingTime': (t2 - t1).__round__(3),
         'HitNum': caching.hit_num,
+        'CacheMatchedLogs': cache_matched_logs,
         'len_of_hashing_table': len(caching.hashing_cache),
         'TokenCount': parser.token_list,
+        'LLMUsage': parser.get_llm_usage_metrics() if hasattr(parser, "get_llm_usage_metrics") else {},
+        'R2RTraceMetrics': parser.get_r2r_trace_metrics() if hasattr(parser, "get_r2r_trace_metrics") else {},
+        'TemplateRecords': caching.template_records,
     }
     with open(time_cost_file, 'w') as file:
         json.dump(time_table, file)
+
+    llm_usage = parser.get_llm_usage_metrics() if hasattr(parser, "get_llm_usage_metrics") else {
+        "invocations": parser.token_list[0],
+        "prompt_tokens": parser.token_list[1],
+        "completion_tokens": 0,
+        "total_tokens": parser.token_list[1],
+        "latency_sec": round(parser.time_consumption_llm, 3),
+        "avg_latency_sec": (
+            round(parser.time_consumption_llm / parser.token_list[0], 6)
+            if parser.token_list[0] else 0
+        ),
+    }
+    r2r_trace_metrics = (
+        parser.get_r2r_trace_metrics()
+        if hasattr(parser, "get_r2r_trace_metrics")
+        else {
+            "router_trigger_count": 0,
+            "routed_token_count": 0,
+            "token_trace_count": 0,
+        }
+    )
+
+    r2r_metrics_file = output_dir + 'r2r_metrics.json'
+    r2r_metrics = {}
+    if os.path.exists(r2r_metrics_file):
+        with open(r2r_metrics_file, 'r') as file:
+            r2r_metrics = json.load(file)
+
+    parsing_time = round(t2 - t1, 3)
+    total_logs = len(logs)
+    r2r_metrics[dataset] = {
+        "dataset": dataset,
+        "total_logs": total_logs,
+        "cache_matched_logs": cache_matched_logs,
+        "hash_cache_hits": caching.hit_num,
+        "cache_hit_rate": cache_matched_logs / total_logs if total_logs else 0,
+        "hash_cache_hit_rate": caching.hit_num / total_logs if total_logs else 0,
+        "llm_invocations": llm_usage["invocations"],
+        "llm_invocation_rate": llm_usage["invocations"] / total_logs if total_logs else 0,
+        "llm_prompt_tokens": llm_usage["prompt_tokens"],
+        "llm_completion_tokens": llm_usage["completion_tokens"],
+        "llm_total_tokens": llm_usage["total_tokens"],
+        "llm_tokens_per_log": llm_usage["total_tokens"] / total_logs if total_logs else 0,
+        "llm_latency_sec": llm_usage["latency_sec"],
+        "llm_avg_latency_sec": llm_usage["avg_latency_sec"],
+        "parsing_time_sec": parsing_time,
+        "latency_per_log_sec": (t2 - t1) / total_logs if total_logs else 0,
+        "router_trigger_count": r2r_trace_metrics["router_trigger_count"],
+        "routed_token_count": r2r_trace_metrics["routed_token_count"],
+        "token_trace_count": r2r_trace_metrics["token_trace_count"],
+        "template_records": caching.template_records,
+    }
+    with open(r2r_metrics_file, 'w') as file:
+        json.dump(r2r_metrics, file, indent=2)
+
+    r2r_metrics_csv = output_dir + 'r2r_metrics.csv'
+    csv_fields = [
+        "dataset",
+        "total_logs",
+        "cache_matched_logs",
+        "hash_cache_hits",
+        "cache_hit_rate",
+        "hash_cache_hit_rate",
+        "llm_invocations",
+        "llm_invocation_rate",
+        "llm_prompt_tokens",
+        "llm_completion_tokens",
+        "llm_total_tokens",
+        "llm_tokens_per_log",
+        "llm_latency_sec",
+        "llm_avg_latency_sec",
+        "parsing_time_sec",
+        "latency_per_log_sec",
+        "router_trigger_count",
+        "routed_token_count",
+        "token_trace_count",
+    ]
+    with open(r2r_metrics_csv, 'w', newline='') as file:
+        writer = csv.DictWriter(file, fieldnames=csv_fields)
+        writer.writeheader()
+        for dataset_name, metrics in sorted(r2r_metrics.items()):
+            writer.writerow({
+                "dataset": dataset_name,
+                "total_logs": metrics["total_logs"],
+                "cache_matched_logs": metrics["cache_matched_logs"],
+                "hash_cache_hits": metrics["hash_cache_hits"],
+                "cache_hit_rate": metrics["cache_hit_rate"],
+                "hash_cache_hit_rate": metrics["hash_cache_hit_rate"],
+                "llm_invocations": metrics["llm_invocations"],
+                "llm_invocation_rate": metrics["llm_invocation_rate"],
+                "llm_prompt_tokens": metrics["llm_prompt_tokens"],
+                "llm_completion_tokens": metrics["llm_completion_tokens"],
+                "llm_total_tokens": metrics["llm_total_tokens"],
+                "llm_tokens_per_log": metrics["llm_tokens_per_log"],
+                "llm_latency_sec": metrics["llm_latency_sec"],
+                "llm_avg_latency_sec": metrics["llm_avg_latency_sec"],
+                "parsing_time_sec": metrics["parsing_time_sec"],
+                "latency_per_log_sec": metrics["latency_per_log_sec"],
+                "router_trigger_count": metrics["router_trigger_count"],
+                "routed_token_count": metrics["routed_token_count"],
+                "token_trace_count": metrics["token_trace_count"],
+            })

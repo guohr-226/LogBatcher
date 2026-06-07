@@ -1,9 +1,11 @@
+import json
 import time
 from openai import OpenAI
 from together import Together
 from logbatcher.cluster import Cluster
 from logbatcher.postprocess import post_process
 from logbatcher.matching import prune_from_cluster
+from logbatcher.parse_trace import CorrectionSignal, RoutedParseResult
 from logbatcher.postprocess import correct_single_template
 from logbatcher.util import verify_template, count_message_tokens
 
@@ -19,20 +21,18 @@ class Parser:
         self.dataset = 'null'
         self.token_list = [0,0]
         self.time_consumption_llm = 0
+        self.llm_prompt_tokens = 0
+        self.llm_completion_tokens = 0
+        self.llm_total_tokens = 0
+        self.r2r_router_trigger_count = 0
+        self.r2r_routed_token_count = 0
+        self.r2r_token_trace_count = 0
         if config['api_key_from_openai'] == '<OpenAI_API_KEY>' and config['api_key_from_together'] == '<Together_API_KEY>':
             raise ValueError("Please provide your OpenAI API key and Together API key in the config.json file.")
         if 'gpt' in self.model:
             self.api_key = config['api_key_from_openai']
             self.client = OpenAI(
                 api_key=self.api_key
-            )
-        elif 'qwen' in self.model:
-            self.api_key = config['api_key_from_openai']
-            self.client = OpenAI(
-                api_key=self.api_key,
-                base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-                timeout=60.0,
-                max_retries=3
             )
         elif 'r2r' in self.model:
             self.api_key = "EMPTY"
@@ -50,12 +50,30 @@ class Parser:
                 # timeout=60.0,
                 max_retries=3
             )
+        elif 'qwen' in self.model:
+            self.api_key = config['api_key_from_openai']
+            self.client = OpenAI(
+                api_key=self.api_key,
+                base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+                timeout=60.0,
+                max_retries=3
+            )
         else:
             self.api_key = config['api_key_from_together']
             self.client = Together(
                 api_key=self.api_key
             )
         print(f"model: {self.model}, base_url: {self.client.base_url}")
+
+    def reset_metrics(self):
+        self.token_list = [0, 0]
+        self.time_consumption_llm = 0
+        self.llm_prompt_tokens = 0
+        self.llm_completion_tokens = 0
+        self.llm_total_tokens = 0
+        self.r2r_router_trigger_count = 0
+        self.r2r_routed_token_count = 0
+        self.r2r_token_trace_count = 0
 
     def _chat_once(self, messages):
         response = self.client.chat.completions.create(
@@ -64,6 +82,116 @@ class Parser:
             temperature=0.0,
         )
         return response.choices[0].message.content.strip('\n')
+
+    def _chat_full_response(self, messages):
+        kwargs = {}
+        if "r2r" in self.model:
+            kwargs["extra_body"] = {
+                "trace_in_content": True,
+                "return_trace": True,
+            }
+        return self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            temperature=0.0,
+            **kwargs,
+        )
+
+    @staticmethod
+    def _response_to_dict(response_obj):
+        if response_obj is None:
+            return {}
+        if isinstance(response_obj, dict):
+            return response_obj
+        if hasattr(response_obj, "model_dump"):
+            return response_obj.model_dump()
+        if hasattr(response_obj, "dict"):
+            return response_obj.dict()
+        return {}
+
+    @staticmethod
+    def _get_response_attr(response_obj, name):
+        if response_obj is None:
+            return None
+        if isinstance(response_obj, dict):
+            return response_obj.get(name)
+        return getattr(response_obj, name, None)
+
+    def _extract_usage(self, response_obj, messages):
+        usage = self._get_response_attr(response_obj, "usage")
+        prompt_tokens = self._get_response_attr(usage, "prompt_tokens")
+        completion_tokens = self._get_response_attr(usage, "completion_tokens")
+        total_tokens = self._get_response_attr(usage, "total_tokens")
+
+        if prompt_tokens is None:
+            prompt_tokens = count_message_tokens(messages, 'gpt-4o-mini')
+        if completion_tokens is None:
+            completion_tokens = 0
+        if total_tokens is None:
+            total_tokens = prompt_tokens + completion_tokens
+
+        return {
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": total_tokens,
+        }
+
+    def _record_llm_usage(self, usage, latency):
+        self.token_list[0] += 1
+        self.token_list[1] += usage["total_tokens"]
+        self.llm_prompt_tokens += usage["prompt_tokens"]
+        self.llm_completion_tokens += usage["completion_tokens"]
+        self.llm_total_tokens += usage["total_tokens"]
+        self.time_consumption_llm += latency
+
+    def get_r2r_trace_metrics(self):
+        return {
+            "router_trigger_count": self.r2r_router_trigger_count,
+            "routed_token_count": self.r2r_routed_token_count,
+            "token_trace_count": self.r2r_token_trace_count,
+        }
+
+    def get_llm_usage_metrics(self):
+        return {
+            "invocations": self.token_list[0],
+            "prompt_tokens": self.llm_prompt_tokens,
+            "completion_tokens": self.llm_completion_tokens,
+            "total_tokens": self.llm_total_tokens,
+            "latency_sec": round(self.time_consumption_llm, 3),
+            "avg_latency_sec": (
+                round(self.time_consumption_llm / self.token_list[0], 6)
+                if self.token_list[0] else 0
+            ),
+        }
+
+    def _parse_r2r_answer(self, answer: str, response_obj=None):
+        try:
+            payload = json.loads(answer)
+            if isinstance(payload, dict) and "final_template" in payload:
+                return RoutedParseResult.from_payload(payload)
+        except (TypeError, json.JSONDecodeError, ValueError):
+            pass
+
+        response_dict = self._response_to_dict(response_obj)
+        candidates = [
+            self._get_response_attr(response_obj, "extra_body"),
+            self._get_response_attr(response_obj, "model_extra"),
+            response_dict.get("extra_body"),
+            response_dict.get("model_extra"),
+            response_dict,
+        ]
+        for candidate in candidates:
+            if not isinstance(candidate, dict):
+                continue
+            payload = candidate.get("r2r_trace")
+            if payload is None and "final_template" in candidate:
+                payload = candidate
+            if isinstance(payload, dict) and "final_template" in payload:
+                try:
+                    return RoutedParseResult.from_payload(payload)
+                except ValueError:
+                    continue
+        return None
 
     def chat(self, messages):
         last_error = None
@@ -94,20 +222,122 @@ class Parser:
         )
         return None, None
 
+    def chat_full_response(self, messages):
+        last_error = None
+        for attempt in range(1, self.LLM_MAX_ATTEMPTS + 1):
+            t0 = time.time()
+            try:
+                response = self._chat_full_response(messages)
+                latency = time.time() - t0
+                if latency > self.LLM_REQUEST_TIMEOUT_SEC:
+                    print(
+                        f"Invalid LLM response: latency {latency:.3f}s exceeds "
+                        f"{self.LLM_REQUEST_TIMEOUT_SEC}s, retry "
+                        f"{attempt}/{self.LLM_MAX_ATTEMPTS}."
+                    )
+                    continue
+                return response, latency
+            except Exception as e:
+                latency = time.time() - t0
+                last_error = e
+                print(
+                    f"LLM request failed: attempt {attempt}/{self.LLM_MAX_ATTEMPTS}, "
+                    f"latency {latency:.3f}s, error: {e}"
+                )
+
+        print(
+            f"LLM request abandoned after {self.LLM_MAX_ATTEMPTS} attempts. "
+            f"Last error: {last_error}"
+        )
+        return None, None
+
+    @staticmethod
+    def _coerce_match_result(match_result):
+        if hasattr(match_result, "template"):
+            return {
+                "template": match_result.template,
+                "template_id": getattr(match_result, "template_id", None),
+                "relevant_templates": getattr(match_result, "relevant_templates", []),
+                "trusted": getattr(match_result, "trusted", True),
+                "match_type": getattr(match_result, "match_type", "cache"),
+                "best_similarity": getattr(match_result, "best_similarity", 0.0),
+                "matched_template": getattr(match_result, "matched_template", match_result.template),
+                "legacy": False,
+            }
+
+        template, template_id, relevant_templates = match_result
+        return {
+            "template": template,
+            "template_id": template_id if template_id != "NoMatch" else None,
+            "relevant_templates": relevant_templates,
+            "trusted": True,
+            "match_type": "legacy_cache" if template != "NoMatch" else "nomatch",
+            "best_similarity": 1.0 if template != "NoMatch" else 0.0,
+            "matched_template": template if template != "NoMatch" else None,
+            "legacy": True,
+        }
+
+    def _emit_correction_signal(
+            self,
+            cache_base,
+            last_match,
+            llm_called,
+            template,
+            router_trigger_count=0,
+            routed_token_count=0,
+            token_trace=None):
+        token_trace = token_trace or []
+        matched_template = last_match.get("matched_template") if last_match else None
+        template_changed = bool(matched_template and matched_template != template)
+        signal = CorrectionSignal(
+            cache_match_type=last_match.get("match_type", "nomatch") if last_match else "nomatch",
+            matched_template_id=last_match.get("template_id") if last_match else None,
+            best_similarity=last_match.get("best_similarity", 0.0) if last_match else 0.0,
+            llm_used=("r2r" in self.model and router_trigger_count > 0) or (
+                "r2r" not in self.model and llm_called
+            ),
+            final_template=template,
+            slm_template=matched_template,
+            router_trigger_count=router_trigger_count,
+            routed_token_count=routed_token_count,
+            token_trace=token_trace,
+            template_changed=template_changed,
+            conflict=template_changed,
+        )
+        if hasattr(cache_base, "update_by_signal"):
+            cache_base.update_by_signal(signal)
+
     def get_responce(self, cluster, cache_base):
 
         # initialize
         logs = cluster.batch_logs
         sample_log = cluster.sample_log
+        last_match = None
+        llm_called = False
+        router_trigger_count = 0
+        routed_token_count = 0
+        token_trace = []
         
         # Matching and Pruning
         new_cluster = Cluster()
         for log in cluster.logs:
-            template, _, _ = cache_base.match_event(log)
+            match = self._coerce_match_result(cache_base.match_event(log))
+            template = match["template"]
             if template != "NoMatch":
+                last_match = match
+            if template != "NoMatch" and match["trusted"]:
                 cluster, new_cluster = prune_from_cluster(
                     template, cluster)
                 if new_cluster.size >= 0 and new_cluster.size < cluster.size:
+                    self._emit_correction_signal(
+                        cache_base,
+                        last_match,
+                        llm_called,
+                        template,
+                        router_trigger_count,
+                        routed_token_count,
+                        token_trace,
+                    )
                     return template, cluster, new_cluster
                 elif new_cluster.size == cluster.size:
                     cluster.logs, cluster.indexs = new_cluster.logs, new_cluster.indexs
@@ -122,6 +352,8 @@ class Parser:
 
         variable_prompt = f' Historical variables: {variables}.' if variables != [] else ''
         instruction = "You will be provided with some log messages separated by line break. You must abstract variables with `{{placeholders}}` to extract the corresponding template. The variable type in log messages can be any of the following: ['url', 'IPv4_port', 'host_port', 'package_host', 'IPv6', 'Mac_address', 'time', 'path', 'id', 'date', 'duration', 'size', 'numerical', 'weekday_months', 'user_name']." + variable_prompt + " Constant text and strings should not be recognized as variables.\nPrint the input log's template delimited by backticks."
+        if "r2r" in self.model:
+            instruction += "\nReturn a JSON object with final_template, source, router_trigger_count, routed_token_count, and token_trace."
 
         # invoke LLM
         messages = [
@@ -129,21 +361,51 @@ class Parser:
             {"role": "user", "content": '\n'.join(f'Log[{i+1}]: `{log}`' for i, log in enumerate(logs))}
         ]
         try:
-            answer, latency = self.chat(messages)
+            usage = None
+            if "r2r" in self.model:
+                response, latency = self.chat_full_response(messages)
+                if response is None:
+                    answer = None
+                else:
+                    answer = response.choices[0].message.content.strip('\n')
+                    usage = self._extract_usage(response, messages)
+                    routed_result = self._parse_r2r_answer(answer, response)
+                    if routed_result is not None:
+                        template = routed_result.final_template
+                        router_trigger_count = routed_result.router_trigger_count
+                        routed_token_count = routed_result.routed_token_count
+                        token_trace = routed_result.token_trace
+                        self.r2r_router_trigger_count += router_trigger_count
+                        self.r2r_routed_token_count += routed_token_count
+                        self.r2r_token_trace_count += len(token_trace)
+                    else:
+                        template = post_process(answer)
+                llm_called = response is not None
+            else:
+                answer, latency = self.chat(messages)
+                template = post_process(answer) if answer is not None else None
+                llm_called = answer is not None
+                if answer is not None:
+                    prompt_tokens = count_message_tokens(messages, 'gpt-4o-mini')
+                    usage = {
+                        "prompt_tokens": prompt_tokens,
+                        "completion_tokens": 0,
+                        "total_tokens": prompt_tokens,
+                    }
+
             if answer is None:
                 print("LLM request abandoned, use sample_log as fallback.")
                 answer = sample_log
+                template = post_process(answer)
             else:
-                self.token_list[0] += 1
-                self.token_list[1] += count_message_tokens(messages, 'gpt-4o-mini')
-                self.time_consumption_llm += latency
+                self._record_llm_usage(usage, latency)
             print(messages)
             print(answer)
         except Exception as e:
             print("invoke LLM error", e)
             answer = sample_log
-        
-        template = post_process(answer)
+            template = post_process(answer)
+
         if not verify_template(template):
             template = correct_single_template(sample_log)
         
@@ -152,4 +414,13 @@ class Parser:
             cluster.logs, cluster.indexs = new_cluster.logs, new_cluster.indexs
             new_cluster = Cluster()
             template = correct_single_template(sample_log)
+        self._emit_correction_signal(
+            cache_base,
+            last_match,
+            llm_called,
+            template,
+            router_trigger_count,
+            routed_token_count,
+            token_trace,
+        )
         return template, cluster, new_cluster

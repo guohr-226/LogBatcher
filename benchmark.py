@@ -85,5 +85,4 @@ if __name__ == "__main__":
             chunk_size=args.chunk_size
         )
         print('time cost by llm: ', parser.time_consumption_llm)
-        parser.time_consumption_llm = 0
-        parser.token_list = [0, 0]
+        parser.reset_metrics()
