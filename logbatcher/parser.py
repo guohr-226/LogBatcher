@@ -27,6 +27,10 @@ class Parser:
         self.r2r_router_trigger_count = 0
         self.r2r_routed_token_count = 0
         self.r2r_token_trace_count = 0
+        self.r2r_endpoint_invocations = 0
+        self.r2r_endpoint_latency_sec = 0.0
+        self.r2r_reference_invocations = 0
+        self.r2r_reference_latency_sec = 0.0
         self.pruning_cache_lookups = 0
         self.pruning_cache_matches = 0
         self.pruning_trusted_cache_hits = 0
@@ -78,6 +82,10 @@ class Parser:
         self.r2r_router_trigger_count = 0
         self.r2r_routed_token_count = 0
         self.r2r_token_trace_count = 0
+        self.r2r_endpoint_invocations = 0
+        self.r2r_endpoint_latency_sec = 0.0
+        self.r2r_reference_invocations = 0
+        self.r2r_reference_latency_sec = 0.0
         self.pruning_cache_lookups = 0
         self.pruning_cache_matches = 0
         self.pruning_trusted_cache_hits = 0
@@ -180,11 +188,26 @@ class Parser:
         }
 
     def _record_llm_usage(self, usage, latency):
+        prompt_tokens = int(self._get_response_attr(usage, "prompt_tokens") or 0)
+        completion_tokens = int(self._get_response_attr(usage, "completion_tokens") or 0)
+        total_tokens = int(self._get_response_attr(usage, "total_tokens") or 0)
+        latency = latency or 0.0
+
+        if "r2r" in self.model:
+            self.r2r_endpoint_invocations += 1
+            self.r2r_endpoint_latency_sec += latency
+
+            if total_tokens <= 0:
+                return
+
+            self.r2r_reference_invocations += 1
+            self.r2r_reference_latency_sec += latency
+
         self.token_list[0] += 1
-        self.token_list[1] += usage["total_tokens"]
-        self.llm_prompt_tokens += usage["prompt_tokens"]
-        self.llm_completion_tokens += usage["completion_tokens"]
-        self.llm_total_tokens += usage["total_tokens"]
+        self.token_list[1] += total_tokens
+        self.llm_prompt_tokens += prompt_tokens
+        self.llm_completion_tokens += completion_tokens
+        self.llm_total_tokens += total_tokens
         self.time_consumption_llm += latency
 
     def get_r2r_trace_metrics(self):
@@ -212,6 +235,18 @@ class Parser:
             "avg_latency_sec": (
                 round(self.time_consumption_llm / self.token_list[0], 6)
                 if self.token_list[0] else 0
+            ),
+            "r2r_endpoint_invocations": self.r2r_endpoint_invocations,
+            "r2r_endpoint_latency_sec": round(self.r2r_endpoint_latency_sec, 3),
+            "r2r_endpoint_avg_latency_sec": (
+                round(self.r2r_endpoint_latency_sec / self.r2r_endpoint_invocations, 6)
+                if self.r2r_endpoint_invocations else 0
+            ),
+            "r2r_reference_invocations": self.r2r_reference_invocations,
+            "r2r_reference_latency_sec": round(self.r2r_reference_latency_sec, 3),
+            "r2r_reference_avg_latency_sec": (
+                round(self.r2r_reference_latency_sec / self.r2r_reference_invocations, 6)
+                if self.r2r_reference_invocations else 0
             ),
         }
 
