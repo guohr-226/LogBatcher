@@ -125,8 +125,43 @@ class Parser:
             return response_obj.get(name)
         return getattr(response_obj, name, None)
 
+    def _extract_r2r_reference_usage(self, response_obj):
+        response_dict = self._response_to_dict(response_obj)
+        candidates = [
+            self._get_response_attr(response_obj, "reference_usage"),
+            self._get_response_attr(response_obj, "dashscope_usage"),
+            response_dict.get("reference_usage"),
+            response_dict.get("dashscope_usage"),
+        ]
+
+        model_extra = self._get_response_attr(response_obj, "model_extra")
+        if isinstance(model_extra, dict):
+            candidates.extend([
+                model_extra.get("reference_usage"),
+                model_extra.get("dashscope_usage"),
+            ])
+
+        response_extra = response_dict.get("model_extra")
+        if isinstance(response_extra, dict):
+            candidates.extend([
+                response_extra.get("reference_usage"),
+                response_extra.get("dashscope_usage"),
+            ])
+
+        for candidate in candidates:
+            if candidate is not None:
+                return candidate
+        return None
+
     def _extract_usage(self, response_obj, messages):
-        usage = self._get_response_attr(response_obj, "usage")
+        response_dict = self._response_to_dict(response_obj)
+        usage = None
+        if "r2r" in self.model:
+            usage = self._extract_r2r_reference_usage(response_obj)
+        if usage is None:
+            usage = self._get_response_attr(response_obj, "usage")
+            if usage is None:
+                usage = response_dict.get("usage")
         prompt_tokens = self._get_response_attr(usage, "prompt_tokens")
         completion_tokens = self._get_response_attr(usage, "completion_tokens")
         total_tokens = self._get_response_attr(usage, "total_tokens")
