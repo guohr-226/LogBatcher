@@ -1,0 +1,1 @@
+python benchmark.py --model r2r --batch_size 10 --chunk_size 1000 --config r2r_risk_0610 > run.log 2>&1

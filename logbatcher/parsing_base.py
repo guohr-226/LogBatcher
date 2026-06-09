@@ -210,11 +210,16 @@ def single_dataset_paring(dataset, contents, output_dir, parser, batch_size = 10
         'InvocatingTime': parser.time_consumption_llm.__round__(3),
         'ParsingTime': (t2 - t1).__round__(3),
         'HitNum': caching.hit_num,
-        'CacheMatchedLogs': cache_matched_logs,
+        'PreChunkCacheMatchedLogs': cache_matched_logs,
         'len_of_hashing_table': len(caching.hashing_cache),
         'TokenCount': parser.token_list,
         'LLMUsage': parser.get_llm_usage_metrics() if hasattr(parser, "get_llm_usage_metrics") else {},
         'R2RTraceMetrics': parser.get_r2r_trace_metrics() if hasattr(parser, "get_r2r_trace_metrics") else {},
+        'PruningCacheMetrics': (
+            parser.get_pruning_cache_metrics()
+            if hasattr(parser, "get_pruning_cache_metrics")
+            else {}
+        ),
         'TemplateRecords': caching.template_records,
     }
     with open(time_cost_file, 'w') as file:
@@ -240,6 +245,16 @@ def single_dataset_paring(dataset, contents, output_dir, parser, batch_size = 10
             "token_trace_count": 0,
         }
     )
+    pruning_cache_metrics = (
+        parser.get_pruning_cache_metrics()
+        if hasattr(parser, "get_pruning_cache_metrics")
+        else {
+            "cache_lookups": 0,
+            "cache_matches": 0,
+            "trusted_cache_hits": 0,
+            "pruned_logs": 0,
+        }
+    )
 
     r2r_metrics_file = output_dir + 'r2r_metrics.json'
     r2r_metrics = {}
@@ -249,12 +264,22 @@ def single_dataset_paring(dataset, contents, output_dir, parser, batch_size = 10
 
     parsing_time = round(t2 - t1, 3)
     total_logs = len(logs)
+    pre_chunk_cache_hit_logs = cache_matched_logs
+    pruning_cache_hit_logs = pruning_cache_metrics["pruned_logs"]
+    total_cache_hit_logs = pre_chunk_cache_hit_logs + pruning_cache_hit_logs
     r2r_metrics[dataset] = {
         "dataset": dataset,
         "total_logs": total_logs,
-        "cache_matched_logs": cache_matched_logs,
+        "pre_chunk_cache_matched_logs": pre_chunk_cache_hit_logs,
+        "pre_chunk_cache_hit_rate": pre_chunk_cache_hit_logs / total_logs if total_logs else 0,
+        "pruning_cache_lookups": pruning_cache_metrics["cache_lookups"],
+        "pruning_cache_matches": pruning_cache_metrics["cache_matches"],
+        "pruning_trusted_cache_hits": pruning_cache_metrics["trusted_cache_hits"],
+        "pruning_cache_hit_logs": pruning_cache_hit_logs,
+        "pruning_cache_hit_rate": pruning_cache_hit_logs / total_logs if total_logs else 0,
+        "cache_matched_logs": total_cache_hit_logs,
         "hash_cache_hits": caching.hit_num,
-        "cache_hit_rate": cache_matched_logs / total_logs if total_logs else 0,
+        "cache_hit_rate": total_cache_hit_logs / total_logs if total_logs else 0,
         "hash_cache_hit_rate": caching.hit_num / total_logs if total_logs else 0,
         "llm_invocations": llm_usage["invocations"],
         "llm_invocation_rate": llm_usage["invocations"] / total_logs if total_logs else 0,
@@ -278,6 +303,13 @@ def single_dataset_paring(dataset, contents, output_dir, parser, batch_size = 10
     csv_fields = [
         "dataset",
         "total_logs",
+        "pre_chunk_cache_matched_logs",
+        "pre_chunk_cache_hit_rate",
+        "pruning_cache_lookups",
+        "pruning_cache_matches",
+        "pruning_trusted_cache_hits",
+        "pruning_cache_hit_logs",
+        "pruning_cache_hit_rate",
         "cache_matched_logs",
         "hash_cache_hits",
         "cache_hit_rate",
@@ -302,22 +334,29 @@ def single_dataset_paring(dataset, contents, output_dir, parser, batch_size = 10
         for dataset_name, metrics in sorted(r2r_metrics.items()):
             writer.writerow({
                 "dataset": dataset_name,
-                "total_logs": metrics["total_logs"],
-                "cache_matched_logs": metrics["cache_matched_logs"],
-                "hash_cache_hits": metrics["hash_cache_hits"],
-                "cache_hit_rate": metrics["cache_hit_rate"],
-                "hash_cache_hit_rate": metrics["hash_cache_hit_rate"],
-                "llm_invocations": metrics["llm_invocations"],
-                "llm_invocation_rate": metrics["llm_invocation_rate"],
-                "llm_prompt_tokens": metrics["llm_prompt_tokens"],
-                "llm_completion_tokens": metrics["llm_completion_tokens"],
-                "llm_total_tokens": metrics["llm_total_tokens"],
-                "llm_tokens_per_log": metrics["llm_tokens_per_log"],
-                "llm_latency_sec": metrics["llm_latency_sec"],
-                "llm_avg_latency_sec": metrics["llm_avg_latency_sec"],
-                "parsing_time_sec": metrics["parsing_time_sec"],
-                "latency_per_log_sec": metrics["latency_per_log_sec"],
-                "router_trigger_count": metrics["router_trigger_count"],
-                "routed_token_count": metrics["routed_token_count"],
-                "token_trace_count": metrics["token_trace_count"],
+                "total_logs": metrics.get("total_logs", 0),
+                "pre_chunk_cache_matched_logs": metrics.get("pre_chunk_cache_matched_logs", 0),
+                "pre_chunk_cache_hit_rate": metrics.get("pre_chunk_cache_hit_rate", 0),
+                "pruning_cache_lookups": metrics.get("pruning_cache_lookups", 0),
+                "pruning_cache_matches": metrics.get("pruning_cache_matches", 0),
+                "pruning_trusted_cache_hits": metrics.get("pruning_trusted_cache_hits", 0),
+                "pruning_cache_hit_logs": metrics.get("pruning_cache_hit_logs", 0),
+                "pruning_cache_hit_rate": metrics.get("pruning_cache_hit_rate", 0),
+                "cache_matched_logs": metrics.get("cache_matched_logs", 0),
+                "hash_cache_hits": metrics.get("hash_cache_hits", 0),
+                "cache_hit_rate": metrics.get("cache_hit_rate", 0),
+                "hash_cache_hit_rate": metrics.get("hash_cache_hit_rate", 0),
+                "llm_invocations": metrics.get("llm_invocations", 0),
+                "llm_invocation_rate": metrics.get("llm_invocation_rate", 0),
+                "llm_prompt_tokens": metrics.get("llm_prompt_tokens", 0),
+                "llm_completion_tokens": metrics.get("llm_completion_tokens", 0),
+                "llm_total_tokens": metrics.get("llm_total_tokens", 0),
+                "llm_tokens_per_log": metrics.get("llm_tokens_per_log", 0),
+                "llm_latency_sec": metrics.get("llm_latency_sec", 0),
+                "llm_avg_latency_sec": metrics.get("llm_avg_latency_sec", 0),
+                "parsing_time_sec": metrics.get("parsing_time_sec", 0),
+                "latency_per_log_sec": metrics.get("latency_per_log_sec", 0),
+                "router_trigger_count": metrics.get("router_trigger_count", 0),
+                "routed_token_count": metrics.get("routed_token_count", 0),
+                "token_trace_count": metrics.get("token_trace_count", 0),
             })

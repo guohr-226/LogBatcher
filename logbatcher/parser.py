@@ -27,6 +27,10 @@ class Parser:
         self.r2r_router_trigger_count = 0
         self.r2r_routed_token_count = 0
         self.r2r_token_trace_count = 0
+        self.pruning_cache_lookups = 0
+        self.pruning_cache_matches = 0
+        self.pruning_trusted_cache_hits = 0
+        self.pruning_pruned_logs = 0
         if config['api_key_from_openai'] == '<OpenAI_API_KEY>' and config['api_key_from_together'] == '<Together_API_KEY>':
             raise ValueError("Please provide your OpenAI API key and Together API key in the config.json file.")
         if 'gpt' in self.model:
@@ -74,6 +78,10 @@ class Parser:
         self.r2r_router_trigger_count = 0
         self.r2r_routed_token_count = 0
         self.r2r_token_trace_count = 0
+        self.pruning_cache_lookups = 0
+        self.pruning_cache_matches = 0
+        self.pruning_trusted_cache_hits = 0
+        self.pruning_pruned_logs = 0
 
     def _chat_once(self, messages):
         response = self.client.chat.completions.create(
@@ -151,6 +159,14 @@ class Parser:
             "token_trace_count": self.r2r_token_trace_count,
         }
 
+    def get_pruning_cache_metrics(self):
+        return {
+            "cache_lookups": self.pruning_cache_lookups,
+            "cache_matches": self.pruning_cache_matches,
+            "trusted_cache_hits": self.pruning_trusted_cache_hits,
+            "pruned_logs": self.pruning_pruned_logs,
+        }
+
     def get_llm_usage_metrics(self):
         return {
             "invocations": self.token_list[0],
@@ -168,6 +184,9 @@ class Parser:
         try:
             payload = json.loads(answer)
             if isinstance(payload, dict) and "final_template" in payload:
+                nested_payload = self._parse_nested_r2r_payload(payload)
+                if nested_payload is not None:
+                    return nested_payload
                 return RoutedParseResult.from_payload(payload)
         except (TypeError, json.JSONDecodeError, ValueError):
             pass
@@ -188,9 +207,24 @@ class Parser:
                 payload = candidate
             if isinstance(payload, dict) and "final_template" in payload:
                 try:
+                    nested_payload = self._parse_nested_r2r_payload(payload)
+                    if nested_payload is not None:
+                        return nested_payload
                     return RoutedParseResult.from_payload(payload)
                 except ValueError:
                     continue
+        return None
+
+    def _parse_nested_r2r_payload(self, payload):
+        final_template = payload.get("final_template")
+        if not isinstance(final_template, str):
+            return None
+        try:
+            nested = json.loads(final_template)
+        except json.JSONDecodeError:
+            return None
+        if isinstance(nested, dict) and "final_template" in nested:
+            return RoutedParseResult.from_payload(nested)
         return None
 
     def chat(self, messages):
@@ -321,13 +355,18 @@ class Parser:
         # Matching and Pruning
         new_cluster = Cluster()
         for log in cluster.logs:
+            self.pruning_cache_lookups += 1
             match = self._coerce_match_result(cache_base.match_event(log))
             template = match["template"]
             if template != "NoMatch":
+                self.pruning_cache_matches += 1
                 last_match = match
             if template != "NoMatch" and match["trusted"]:
+                self.pruning_trusted_cache_hits += 1
                 cluster, new_cluster = prune_from_cluster(
                     template, cluster)
+                pruned_logs = len(cluster.indexs)
+                self.pruning_pruned_logs += pruned_logs
                 if new_cluster.size >= 0 and new_cluster.size < cluster.size:
                     self._emit_correction_signal(
                         cache_base,
@@ -347,7 +386,11 @@ class Parser:
         variable_cluster = Cluster()
         variable_cluster.logs = cache_base.variable_candidates
         if variable_cluster.logs != []:
-            variable_cluster.varaible_sampling(5)
+            try:
+                variable_cluster.varaible_sampling(5)
+            except ValueError as e:
+                print(f"historical variable sampling skipped: {e}")
+                variable_cluster.batch_logs = []
         variables = variable_cluster.batch_logs
 
         variable_prompt = f' Historical variables: {variables}.' if variables != [] else ''
