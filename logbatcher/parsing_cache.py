@@ -1,4 +1,6 @@
 from collections import defaultdict, Counter, OrderedDict
+from dataclasses import dataclass
+from typing import Optional, Union
 import difflib
 from hashlib import sha256
 import re
@@ -9,6 +11,27 @@ import multiprocessing as mp
 
 import re
 import signal
+
+
+@dataclass
+class MatchResult:
+    template: str
+    template_id: Union[int, str]
+    relevant_templates: list
+    trusted: bool = True
+    match_type: str = "cache"
+    best_similarity: float = 1.0
+    matched_template: Optional[str] = None
+
+    def __post_init__(self):
+        if self.matched_template is None and self.template != "NoMatch":
+            self.matched_template = self.template
+
+    def __iter__(self):
+        return iter((self.template, self.template_id, self.relevant_templates))
+
+    def __getitem__(self, index):
+        return (self.template, self.template_id, self.relevant_templates)[index]
 
 class TimeoutException(Exception):
     pass
@@ -77,7 +100,12 @@ class ParsingCache(object):
         self.template_records = {}
 
     def _ensure_template_record(self, template_id, template):
-        if template_id is None or template_id == "NoMatch" or template_id < 0:
+        if template_id is None or template_id == "NoMatch":
+            return None
+        try:
+            if template_id < 0:
+                return None
+        except TypeError:
             return None
         if template_id not in self.template_records:
             self.template_records[template_id] = {
@@ -109,6 +137,21 @@ class ParsingCache(object):
             and record["conflict_count"] == 0
         ):
             record["status"] = "stable"
+
+    def _is_trusted_template(self, template_id):
+        record = self.template_records.get(template_id)
+        if record is None:
+            return True
+        return record.get("status") not in ("risky", "split_candidate", "deprecated")
+
+    def record_cache_hit(self, template_id, template, match_type="cache"):
+        record = self._ensure_template_record(template_id, template)
+        if record is None:
+            return
+        record["hit_count"] += 1
+        record["stable_hit_count"] += 1
+        record["risk_score"] = max(0.0, record["risk_score"] - 0.05)
+        self._update_record_status(record)
 
     def update_by_signal(self, signal):
         if signal.matched_template_id is None:
@@ -264,13 +307,35 @@ class ParsingCache(object):
             cached_str, template, id = self.hashing_cache[hash_key]
             if cached_str == standardized:
                 self.hit_num += 1
-                return template, id, []
+                return MatchResult(
+                    template=template,
+                    template_id=id,
+                    relevant_templates=[],
+                    trusted=self._is_trusted_template(id),
+                    match_type="hash",
+                    best_similarity=1.0,
+                )
         results = tree_match(self.template_tree, self.template_list, log)
         if results[0] != "NoMatch":
             standardized = standardize(log)
             hash_key = sha256(standardized.encode()).hexdigest()
             self.hashing_cache[hash_key] = (standardized, results[0], results[1])
-        return results
+            return MatchResult(
+                template=results[0],
+                template_id=results[1],
+                relevant_templates=results[2],
+                trusted=self._is_trusted_template(results[1]),
+                match_type="tree",
+                best_similarity=1.0,
+            )
+        return MatchResult(
+            template="NoMatch",
+            template_id="NoMatch",
+            relevant_templates=results[2],
+            trusted=False,
+            match_type="nomatch",
+            best_similarity=0.0,
+        )
 
 
     def _preprocess_template(self, template):

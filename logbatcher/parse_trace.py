@@ -3,6 +3,24 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 
 
+def _coerce_int(value, default=0):
+    try:
+        if value is None:
+            return default
+        if isinstance(value, bool):
+            return int(value)
+        if isinstance(value, (int, float)):
+            return int(value)
+        if isinstance(value, str):
+            stripped = value.strip().replace(",", "")
+            if stripped == "":
+                return default
+            return int(float(stripped))
+    except (TypeError, ValueError):
+        return default
+    return default
+
+
 @dataclass
 class TokenTrace:
     step: int
@@ -73,8 +91,8 @@ class RoutedParseResult:
         return cls(
             final_template=payload["final_template"],
             source=payload.get("source", ""),
-            router_trigger_count=router_trigger_count,
-            routed_token_count=routed_token_count,
+            router_trigger_count=_coerce_int(router_trigger_count),
+            routed_token_count=_coerce_int(routed_token_count),
             token_trace=token_trace,
         )
 

@@ -1,5 +1,51 @@
 import re
 
+def normalize_common_identifiers(template):
+    rules = [
+        (r'\bblk_[-+]?(?:\d+|<\*>)\b', '<*>'),
+        (r'\battempt_\d+_\d+_[mr]_\d+_\d+\b', '<*>'),
+        (r'\bDFSClient_NONMAPREDUCE_[-+]?\d+_\d+\b', '<*>'),
+        (r'\bDFSClient_NONMAPREDUCE_-<\*>\b', '<*>'),
+        (r'\brdd_\d+_\d+\b', '<*>'),
+        (r'\brdd_<\*>\b', '<*>'),
+        (r'\bbroadcast_\d+(?:_piece\d+)?\b', '<*>'),
+        (r'\bbroadcast_<\*>(?:_piece<\*>)?\b', '<*>'),
+        (r'\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b', '<*>'),
+        (r'\b0[xX][0-9a-fA-F]+\b', '<*>'),
+        (r'<\*>(?:-[0-9a-fA-F<*>]+){2,}', '<*>'),
+        (r'::ffff:<\*>', '<*>'),
+        (r'\bmsra-sa-<\*>\b', '<*>'),
+        (r'\bat (?:Mon|Tue|Wed|Thu|Fri|Sat|Sun) (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) <\*> <\*> <\*>', 'at <*>'),
+        (r'(connection from <\*> )\([^)]+\)( at )', r'\1(<*>)\2'),
+        (r'tty=\S+', 'tty=<*>'),
+        (r'\bOut of Memory: Killed process <\*> \([^)]+\)\.', 'Out of Memory: Killed process <*> (<*>).'),
+        (r'\bFailed password for invalid user \S+ from ', 'Failed password for invalid user <*> from '),
+        (r'\bInvalid user \S+ from ', 'Invalid user <*> from '),
+        (r'\bcheck pass; user \S+\b', 'check pass; user <*>'),
+    ]
+    for pattern, replacement in rules:
+        template = re.sub(pattern, replacement, template)
+    return template
+
+def normalize_template_text(template):
+    if template is None:
+        return ''
+
+    template = str(template).replace('\n', ' ').strip()
+    if len(template) >= 2 and template[0] == '`' and template[-1] == '`':
+        template = template[1:-1].strip()
+
+    template = re.sub(r'\{\{.*?\}\}', '<*>', template)
+    template = re.sub(r'\$\{.*?\}', '<*>', template)
+    template = normalize_common_identifiers(template)
+    template = correct_single_template(template)
+    template = normalize_common_identifiers(template)
+    template = correct_single_template(template)
+    if template.replace('<*>', '').replace(' ','') == '':
+        template = ''
+
+    return template
+
 def post_process(response):
 
     response = response.replace('\n', '')
@@ -18,13 +64,7 @@ def post_process(response):
     if len(tmps) > 1:
         tmp = max(tmps, key=len)
 
-    template = re.sub(r'\{\{.*?\}\}', '<*>', tmp)
-    template = re.sub(r'\$\{.*?\}', '<*>', template)
-    template = correct_single_template(template)
-    if template.replace('<*>', '').replace(' ','') == '':
-        template = ''
-
-    return template
+    return normalize_template_text(tmp)
 
 def exclude_digits(string):
     '''
@@ -72,6 +112,7 @@ def correct_single_template(template, user_strings=None):
     # Note: this is not necessary while postprorcessing
     template = template.strip()
     template = re.sub(r'\s+', ' ', template)
+    template = normalize_common_identifiers(template)
 
     # apply PS
     p_tokens = re.split('(' + '|'.join(path_delimiters) + ')', template)
@@ -164,5 +205,4 @@ def correct_single_template(template, user_strings=None):
 
     template = re.sub(r'<\*> [KGTM]?B\b', '<*>', template)
 
-    return template
-
+    return normalize_common_identifiers(template)

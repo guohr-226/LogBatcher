@@ -3,7 +3,7 @@ import time
 from openai import OpenAI
 from together import Together
 from logbatcher.cluster import Cluster
-from logbatcher.postprocess import post_process
+from logbatcher.postprocess import normalize_template_text, post_process
 from logbatcher.matching import prune_from_cluster
 from logbatcher.parse_trace import CorrectionSignal, RoutedParseResult
 from logbatcher.postprocess import correct_single_template
@@ -35,6 +35,7 @@ class Parser:
         self.pruning_cache_matches = 0
         self.pruning_trusted_cache_hits = 0
         self.pruning_pruned_logs = 0
+        self.last_correction_signal = None
         if config['api_key_from_openai'] == '<OpenAI_API_KEY>' and config['api_key_from_together'] == '<Together_API_KEY>':
             raise ValueError("Please provide your OpenAI API key and Together API key in the config.json file.")
         if 'gpt' in self.model:
@@ -90,6 +91,7 @@ class Parser:
         self.pruning_cache_matches = 0
         self.pruning_trusted_cache_hits = 0
         self.pruning_pruned_logs = 0
+        self.last_correction_signal = None
 
     def _chat_once(self, messages):
         response = self.client.chat.completions.create(
@@ -132,6 +134,24 @@ class Parser:
         if isinstance(response_obj, dict):
             return response_obj.get(name)
         return getattr(response_obj, name, None)
+
+    @staticmethod
+    def _coerce_int(value, default=0):
+        try:
+            if value is None:
+                return default
+            if isinstance(value, bool):
+                return int(value)
+            if isinstance(value, (int, float)):
+                return int(value)
+            if isinstance(value, str):
+                stripped = value.strip().replace(",", "")
+                if stripped == "":
+                    return default
+                return int(float(stripped))
+        except (TypeError, ValueError):
+            return default
+        return default
 
     def _extract_r2r_reference_usage(self, response_obj):
         response_dict = self._response_to_dict(response_obj)
@@ -188,9 +208,9 @@ class Parser:
         }
 
     def _record_llm_usage(self, usage, latency):
-        prompt_tokens = int(self._get_response_attr(usage, "prompt_tokens") or 0)
-        completion_tokens = int(self._get_response_attr(usage, "completion_tokens") or 0)
-        total_tokens = int(self._get_response_attr(usage, "total_tokens") or 0)
+        prompt_tokens = self._coerce_int(self._get_response_attr(usage, "prompt_tokens"))
+        completion_tokens = self._coerce_int(self._get_response_attr(usage, "completion_tokens"))
+        total_tokens = self._coerce_int(self._get_response_attr(usage, "total_tokens"))
         latency = latency or 0.0
 
         if "r2r" in self.model:
@@ -294,7 +314,11 @@ class Parser:
         except json.JSONDecodeError:
             return None
         if isinstance(nested, dict) and "final_template" in nested:
-            return RoutedParseResult.from_payload(nested)
+            merged = dict(nested)
+            for field in ("source", "router_trigger_count", "routed_token_count", "token_trace"):
+                if field in payload:
+                    merged[field] = payload[field]
+            return RoutedParseResult.from_payload(merged)
         return None
 
     def chat(self, messages):
@@ -390,6 +414,8 @@ class Parser:
             router_trigger_count=0,
             routed_token_count=0,
             token_trace=None):
+        router_trigger_count = self._coerce_int(router_trigger_count)
+        routed_token_count = self._coerce_int(routed_token_count)
         token_trace = token_trace or []
         matched_template = last_match.get("matched_template") if last_match else None
         template_changed = bool(matched_template and matched_template != template)
@@ -408,8 +434,25 @@ class Parser:
             template_changed=template_changed,
             conflict=template_changed,
         )
+        self.last_correction_signal = signal
         if hasattr(cache_base, "update_by_signal"):
             cache_base.update_by_signal(signal)
+
+    def bind_last_signal_to_template(self, cache_base, template_id):
+        signal = getattr(self, "last_correction_signal", None)
+        if signal is None or signal.matched_template_id is not None:
+            return
+        if template_id is None or template_id == "NoMatch":
+            return
+        try:
+            if template_id < 0:
+                return
+        except TypeError:
+            return
+        signal.matched_template_id = template_id
+        if hasattr(cache_base, "update_by_signal"):
+            cache_base.update_by_signal(signal)
+        self.last_correction_signal = None
 
     def get_responce(self, cluster, cache_base):
 
@@ -421,6 +464,7 @@ class Parser:
         router_trigger_count = 0
         routed_token_count = 0
         token_trace = []
+        self.last_correction_signal = None
         
         # Matching and Pruning
         new_cluster = Cluster()
@@ -466,7 +510,14 @@ class Parser:
         variable_prompt = f' Historical variables: {variables}.' if variables != [] else ''
         instruction = "You will be provided with some log messages separated by line break. You must abstract variables with `{{placeholders}}` to extract the corresponding template. The variable type in log messages can be any of the following: ['url', 'IPv4_port', 'host_port', 'package_host', 'IPv6', 'Mac_address', 'time', 'path', 'id', 'date', 'duration', 'size', 'numerical', 'weekday_months', 'user_name']." + variable_prompt + " Constant text and strings should not be recognized as variables.\nPrint the input log's template delimited by backticks."
         if "r2r" in self.model:
-            instruction += "\nReturn a JSON object with final_template, source, router_trigger_count, routed_token_count, and token_trace."
+            instruction += (
+                "\nReturn a JSON object with final_template, source, "
+                "router_trigger_count, routed_token_count, and token_trace. "
+                "final_template must be a single template string that uses <*> "
+                "placeholders directly. Do not wrap final_template in backticks, "
+                "do not use {{...}} placeholders, and do not encode another JSON "
+                "object inside final_template."
+            )
 
         # invoke LLM
         messages = [
@@ -484,7 +535,9 @@ class Parser:
                     usage = self._extract_usage(response, messages)
                     routed_result = self._parse_r2r_answer(answer, response)
                     if routed_result is not None:
-                        template = routed_result.final_template
+                        template = normalize_template_text(routed_result.final_template)
+                        if not template:
+                            template = post_process(answer)
                         router_trigger_count = routed_result.router_trigger_count
                         routed_token_count = routed_result.routed_token_count
                         token_trace = routed_result.token_trace

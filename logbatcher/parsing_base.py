@@ -51,10 +51,17 @@ def single_dataset_paring(dataset, contents, output_dir, parser, batch_size = 10
     for index, log in iterable:
 
         match_results = caching.match_event(log)
-        if match_results[0] != "NoMatch":
+        trusted_match = getattr(match_results, "trusted", True)
+        if match_results[0] != "NoMatch" and trusted_match:
             cache_matched_logs += 1
             # outputs[index] = match_results[0]
             outputs_index[index] = match_results[1]
+            if hasattr(caching, "record_cache_hit"):
+                caching.record_cache_hit(
+                    match_results[1],
+                    match_results[0],
+                    getattr(match_results, "match_type", "cache"),
+                )
         else:
             log_chunk.append(log)
             log_chunk_index.append(index)
@@ -166,6 +173,8 @@ def single_dataset_paring(dataset, contents, output_dir, parser, batch_size = 10
                         id, _, _ = caching.add_templates(event_template=refer_log, insert=False, refer_log = refer_log)
                 else:
                     id = caching.template_list.index(template)
+                if hasattr(parser, "bind_last_signal_to_template"):
+                    parser.bind_last_signal_to_template(caching, id)
                 for index in old_cluster.indexs:
                     outputs_index[index] = id
                 cluster_index += 1
