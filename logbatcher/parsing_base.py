@@ -11,6 +11,7 @@ from logbatcher.cluster import Cluster,tokenize, vectorize, cluster, reassign_cl
 from logbatcher.additional_cluster import hierichical_clustering,meanshift_clustering
 from logbatcher.util import verify_template
 from logbatcher.parsing_cache import ParsingCache
+from logbatcher.runtime_metrics import IndependentRuntimeMetrics, write_independent_metrics
 
 USE_PROGRESS_BAR = sys.stdout.isatty() and sys.stderr.isatty()
 
@@ -31,6 +32,7 @@ def single_dataset_paring(dataset, contents, output_dir, parser, batch_size = 10
     log_chunk = []
     log_chunk_index = []
     caching = ParsingCache()
+    runtime_metrics = IndependentRuntimeMetrics(dataset, len(logs))
     print(f'Parsing {len(logs)} logs in dataset {dataset}...')
 
     outputs = [None for _ in range(len(logs))]
@@ -52,8 +54,14 @@ def single_dataset_paring(dataset, contents, output_dir, parser, batch_size = 10
 
         match_results = caching.match_event(log)
         trusted_match = getattr(match_results, "trusted", True)
+        runtime_metrics.record_cache_lookup(
+            stage="pre_chunk",
+            matched=match_results[0] != "NoMatch",
+            trusted=trusted_match,
+        )
         if match_results[0] != "NoMatch" and trusted_match:
             cache_matched_logs += 1
+            runtime_metrics.record_cache_hit_logs("pre_chunk", 1)
             # outputs[index] = match_results[0]
             outputs_index[index] = match_results[1]
             if hasattr(caching, "record_cache_hit"):
@@ -151,7 +159,11 @@ def single_dataset_paring(dataset, contents, output_dir, parser, batch_size = 10
                         f'llm_calls={parser.token_list[0]}, templates={len(set(caching.template_list))}'
                     )
                 llm_start = time.time()
-                template, old_cluster, new_cluster = parser.get_responce(old_cluster, cache_base = caching)
+                template, old_cluster, new_cluster = parser.get_responce(
+                    old_cluster,
+                    cache_base=caching,
+                    runtime_metrics=runtime_metrics,
+                )
                 if debug:
                     _progress(
                         f'[{dataset}] chunk {chunk_id} cluster {cluster_index + 1} done in {_elapsed(llm_start)}: '
@@ -393,3 +405,5 @@ def single_dataset_paring(dataset, contents, output_dir, parser, batch_size = 10
                 "routed_token_count": metrics.get("routed_token_count", 0),
                 "token_trace_count": metrics.get("token_trace_count", 0),
             })
+
+    write_independent_metrics(output_dir, runtime_metrics)

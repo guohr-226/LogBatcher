@@ -25,6 +25,14 @@ def set_args():
     parser.add_argument('--chunk_size', type=int, default=10000,
                         help='Size of logs in a chunk.')
     parser.add_argument('--config', type=str, default="null")
+    parser.add_argument('--dataset_root', type=str, default='datasets/sample2k_dataset',
+                        help='Directory containing dataset folders.')
+    parser.add_argument('--datasets', nargs='*', default=None,
+                        help='Optional dataset names to parse. Defaults to all sample2k datasets.')
+    parser.add_argument('--base_url', type=str, default=os.environ.get('LOGBATCHER_BASE_URL', 'http://localhost:10001/v1'),
+                        help='OpenAI-compatible local model endpoint.')
+    parser.add_argument('--force', action='store_true',
+                        help='Re-parse datasets even when output files already exist.')
     args = parser.parse_args()
     return args
 
@@ -32,20 +40,31 @@ def set_args():
 if __name__ == "__main__":
     args = set_args()
 
-    datasets = ['BGL', 'HDFS', 'OpenStack', 'OpenSSH', 'HPC', 'Zookeeper', 'Spark', 'Proxifier', 'HealthApp', 'Mac', 'Hadoop', 'Apache', 'Linux', 'Thunderbird']
+    default_datasets = ['BGL', 'HDFS', 'OpenStack', 'OpenSSH', 'HPC', 'Zookeeper', 'Spark', 'Proxifier', 'HealthApp', 'Mac', 'Hadoop', 'Apache', 'Linux', 'Thunderbird']
+    if args.datasets:
+        datasets = args.datasets
+    else:
+        datasets = [
+            dataset for dataset in default_datasets
+            if os.path.exists(os.path.join(args.dataset_root, dataset, f'{dataset}_full.log_structured.csv'))
+        ]
+    if not datasets:
+        raise ValueError(f'No datasets found under {args.dataset_root}')
 
     # output dir
     if args.config == 'null':
         output_folder = f"logbatcher"
     else:
         output_folder = args.config
-    output_dir = f'outputs/parser/{output_folder}/'
+    output_dir = os.path.join('outputs', 'parser', output_folder) + os.sep
 
     # load api key and dataset format
     with open('config.json', 'r') as f:
         config = json.load(f)
-    parser = Parser(args.model, output_folder, config)
+    parser = Parser(args.model, output_folder, config, base_url=args.base_url)
     print(f"Benchmark output directory: {output_dir}", flush=True)
+    print(f"Dataset root: {args.dataset_root}", flush=True)
+    print(f"Model endpoint: {args.base_url}", flush=True)
     dataset_iter = tqdm(
         datasets,
         desc="Datasets",
@@ -56,11 +75,11 @@ if __name__ == "__main__":
     for index, dataset in enumerate(dataset_iter):
         if USE_PROGRESS_BAR:
             dataset_iter.set_postfix_str(dataset)
-        if os.path.exists(f'{output_dir}{dataset}_full.log_structured.csv'):
+        if os.path.exists(f'{output_dir}{dataset}_full.log_structured.csv') and not args.force:
             progress_write(f'{dataset} has been parsed, skip it.')
             continue
         progress_write(f'[{index + 1}/{len(datasets)}] Start dataset {dataset}')
-        structured_log_file = f'datasets/sample10k_dataset/{dataset}/{dataset}_full.log_structured.csv'
+        structured_log_file = os.path.join(args.dataset_root, dataset, f'{dataset}_full.log_structured.csv')
         
         log_file_format = 'structured'
         if log_file_format == 'structured':

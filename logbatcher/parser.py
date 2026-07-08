@@ -1,4 +1,5 @@
 import json
+import os
 import time
 from openai import OpenAI
 from together import Together
@@ -14,10 +15,15 @@ class Parser:
     LLM_REQUEST_TIMEOUT_SEC = 300
     LLM_MAX_ATTEMPTS = 3
 
-    def __init__(self, model, theme, config):
+    def __init__(self, model, theme, config, base_url=None):
 
         self.model = model
         self.theme = theme
+        self.base_url_override = (
+            base_url
+            or os.environ.get("LOGBATCHER_BASE_URL")
+            or config.get("base_url")
+        )
         self.dataset = 'null'
         self.token_list = [0,0]
         self.time_consumption_llm = 0
@@ -47,7 +53,7 @@ class Parser:
             self.api_key = "EMPTY"
             self.client = OpenAI(
                 api_key=self.api_key,
-                base_url="http://localhost:30000/v1",
+                base_url=self.base_url_override or "http://localhost:30000/v1",
                 # timeout=60.0,
                 max_retries=3
             )
@@ -55,7 +61,7 @@ class Parser:
             self.api_key = "EMPTY"
             self.client = OpenAI(
                 api_key=self.api_key,
-                base_url="http://localhost:30001/v1",
+                base_url=self.base_url_override or "http://localhost:30001/v1",
                 # timeout=60.0,
                 max_retries=3
             )
@@ -413,7 +419,8 @@ class Parser:
             template,
             router_trigger_count=0,
             routed_token_count=0,
-            token_trace=None):
+            token_trace=None,
+            runtime_metrics=None):
         router_trigger_count = self._coerce_int(router_trigger_count)
         routed_token_count = self._coerce_int(routed_token_count)
         token_trace = token_trace or []
@@ -435,6 +442,13 @@ class Parser:
             conflict=template_changed,
         )
         self.last_correction_signal = signal
+        if runtime_metrics is not None:
+            runtime_metrics.record_cache_template_check(
+                matched_template=matched_template,
+                final_template=template,
+                checked_by_model=llm_called,
+                error=template_changed or signal.conflict,
+            )
         if hasattr(cache_base, "update_by_signal"):
             cache_base.update_by_signal(signal)
 
@@ -454,7 +468,7 @@ class Parser:
             cache_base.update_by_signal(signal)
         self.last_correction_signal = None
 
-    def get_responce(self, cluster, cache_base):
+    def get_responce(self, cluster, cache_base, runtime_metrics=None):
 
         # initialize
         logs = cluster.batch_logs
@@ -472,6 +486,12 @@ class Parser:
             self.pruning_cache_lookups += 1
             match = self._coerce_match_result(cache_base.match_event(log))
             template = match["template"]
+            if runtime_metrics is not None:
+                runtime_metrics.record_cache_lookup(
+                    stage="pruning",
+                    matched=template != "NoMatch",
+                    trusted=match["trusted"],
+                )
             if template != "NoMatch":
                 self.pruning_cache_matches += 1
                 last_match = match
@@ -481,6 +501,8 @@ class Parser:
                     template, cluster)
                 pruned_logs = len(cluster.indexs)
                 self.pruning_pruned_logs += pruned_logs
+                if runtime_metrics is not None:
+                    runtime_metrics.record_cache_hit_logs("pruning", pruned_logs)
                 if new_cluster.size >= 0 and new_cluster.size < cluster.size:
                     self._emit_correction_signal(
                         cache_base,
@@ -490,6 +512,7 @@ class Parser:
                         router_trigger_count,
                         routed_token_count,
                         token_trace,
+                        runtime_metrics,
                     )
                     return template, cluster, new_cluster
                 elif new_cluster.size == cluster.size:
@@ -526,8 +549,10 @@ class Parser:
         ]
         try:
             usage = None
+            response_for_metrics = None
             if "r2r" in self.model:
                 response, latency = self.chat_full_response(messages)
+                response_for_metrics = response
                 if response is None:
                     answer = None
                 else:
@@ -565,6 +590,17 @@ class Parser:
                 template = post_process(answer)
             else:
                 self._record_llm_usage(usage, latency)
+                if runtime_metrics is not None:
+                    runtime_metrics.record_model_call(
+                        response_obj=response_for_metrics,
+                        messages=messages,
+                        answer=answer,
+                        latency_sec=latency,
+                        is_r2r="r2r" in self.model,
+                        router_trigger_count=router_trigger_count,
+                        routed_token_count=routed_token_count,
+                        token_trace_count=len(token_trace),
+                    )
             print(messages)
             print(answer)
         except Exception as e:
@@ -588,5 +624,6 @@ class Parser:
             router_trigger_count,
             routed_token_count,
             token_trace,
+            runtime_metrics,
         )
         return template, cluster, new_cluster
