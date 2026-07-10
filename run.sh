@@ -6,17 +6,40 @@ BASE_URL="${BASE_URL:-http://localhost:10001/v1}"
 DATASET_ROOT="${DATASET_ROOT:-datasets/sample2k_dataset}"
 OUTPUT_FOLDER="${OUTPUT_FOLDER:-r2r_qwen8b}"
 PYTHON_BIN="${PYTHON_BIN:-python}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DATASETS="${DATASETS:-}"
+export LOGBATCHER_LLM_TIMEOUT_SEC="${LOGBATCHER_LLM_TIMEOUT_SEC:-300}"
+export LOGBATCHER_LLM_MAX_ATTEMPTS="${LOGBATCHER_LLM_MAX_ATTEMPTS:-1}"
+export LOGBATCHER_CLIENT_MAX_RETRIES="${LOGBATCHER_CLIENT_MAX_RETRIES:-0}"
+export LOGBATCHER_REQUEST_MODEL="${LOGBATCHER_REQUEST_MODEL:-default}"
+export LOGBATCHER_MAX_TOKENS="${LOGBATCHER_MAX_TOKENS:-128}"
+export LOGBATCHER_VERBOSE_LLM="${LOGBATCHER_VERBOSE_LLM:-0}"
+export LOGBATCHER_R2R_MAX_SAMPLE_LOGS="${LOGBATCHER_R2R_MAX_SAMPLE_LOGS:-5}"
+export LOGBATCHER_R2R_FEWSHOT_K="${LOGBATCHER_R2R_FEWSHOT_K:-5}"
+export LOGBATCHER_FEWSHOT_SAMPLE_DIR="${LOGBATCHER_FEWSHOT_SAMPLE_DIR:-${SCRIPT_DIR}/../CSLParser/results_sample2k_dataset_1/samples}"
+export LOGBATCHER_R2R_TEMPLATE_RETRY_ATTEMPTS="${LOGBATCHER_R2R_TEMPLATE_RETRY_ATTEMPTS:-2}"
+export LOGBATCHER_R2R_MIN_TEMPLATE_COVERAGE="${LOGBATCHER_R2R_MIN_TEMPLATE_COVERAGE:-0.8}"
+export LOGBATCHER_R2R_VALIDATE_LOGS="${LOGBATCHER_R2R_VALIDATE_LOGS:-20}"
+export LOGBATCHER_ASCII_ONLY_TEMPLATES="${LOGBATCHER_ASCII_ONLY_TEMPLATES:-1}"
 
 if [ "${PYTHON_BIN}" = "python" ] && [ -x ".venv/bin/python" ]; then
   PYTHON_BIN=".venv/bin/python"
 fi
 
-"${PYTHON_BIN}" benchmark.py \
-  --model "${MODEL_NAME}" \
-  --base_url "${BASE_URL}" \
-  --dataset_root "${DATASET_ROOT}" \
-  --batch_size 10 \
-  --chunk_size 1000 \
-  --config "${OUTPUT_FOLDER}" \
-  --force \
-  > run.log 2>&1
+cmd=(
+  "${PYTHON_BIN}" benchmark.py
+  --model "${MODEL_NAME}"
+  --base_url "${BASE_URL}"
+  --dataset_root "${DATASET_ROOT}"
+  --batch_size 10
+  --chunk_size 1000
+  --config "${OUTPUT_FOLDER}"
+  --force
+)
+
+if [ -n "${DATASETS}" ]; then
+  read -r -a DATASET_ARGS <<< "${DATASETS}"
+  cmd+=(--datasets "${DATASET_ARGS[@]}")
+fi
+
+"${cmd[@]}" > run.log 2>&1

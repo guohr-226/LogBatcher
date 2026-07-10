@@ -11,6 +11,7 @@ from logbatcher.cluster import Cluster,tokenize, vectorize, cluster, reassign_cl
 from logbatcher.additional_cluster import hierichical_clustering,meanshift_clustering
 from logbatcher.util import verify_template
 from logbatcher.parsing_cache import ParsingCache
+from logbatcher.postprocess import merge_similar_templates
 from logbatcher.runtime_metrics import IndependentRuntimeMetrics, write_independent_metrics
 
 USE_PROGRESS_BAR = sys.stdout.isatty() and sys.stderr.isatty()
@@ -202,10 +203,12 @@ def single_dataset_paring(dataset, contents, output_dir, parser, batch_size = 10
     
     print(caching.variable_candidates)
     outputs = [caching.template_list[i] for i in outputs_index]
+    outputs, template_merge_report = merge_similar_templates(outputs)
     # Result
     t2 = time.time()
     print(f'parsing time: {t2 - t1}')
     print(f'idetified templates: {len(set(outputs))}')
+    print(f'template merge report: {template_merge_report}')
 
     # output logs
     output_log_file = output_dir + f'{dataset}_full.log_structured.csv'
@@ -241,6 +244,7 @@ def single_dataset_paring(dataset, contents, output_dir, parser, batch_size = 10
             if hasattr(parser, "get_pruning_cache_metrics")
             else {}
         ),
+        'TemplateMerge': template_merge_report,
         'TemplateRecords': caching.template_records,
     }
     with open(time_cost_file, 'w') as file:
@@ -327,6 +331,7 @@ def single_dataset_paring(dataset, contents, output_dir, parser, batch_size = 10
         "router_trigger_count": r2r_trace_metrics["router_trigger_count"],
         "routed_token_count": r2r_trace_metrics["routed_token_count"],
         "token_trace_count": r2r_trace_metrics["token_trace_count"],
+        "template_merge": template_merge_report,
         "template_records": caching.template_records,
     }
     with open(r2r_metrics_file, 'w') as file:
