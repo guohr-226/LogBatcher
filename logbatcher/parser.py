@@ -2,6 +2,7 @@ import json
 import os
 import re
 import time
+from urllib.parse import urlparse
 from openai import OpenAI
 from together import Together
 from logbatcher.cluster import Cluster
@@ -19,12 +20,14 @@ class Parser:
     def __init__(self, model, theme, config, base_url=None):
 
         self.model = model
+        self.model_lower = self.model.lower()
         self.theme = theme
         self.base_url_override = (
             base_url
             or os.environ.get("LOGBATCHER_BASE_URL")
             or config.get("base_url")
         )
+        self.is_local_endpoint = self._is_local_base_url(self.base_url_override)
         self.request_timeout_sec = self._read_float_env(
             "LOGBATCHER_LLM_TIMEOUT_SEC",
             self.LLM_REQUEST_TIMEOUT_SEC,
@@ -82,7 +85,7 @@ class Parser:
         )
         self.request_model = (
             os.environ.get("LOGBATCHER_REQUEST_MODEL")
-            or ("default" if "r2r" in self.model else self.model)
+            or ("default" if "r2r" in self.model_lower else self.model)
         )
         self.verbose_llm_io = os.environ.get("LOGBATCHER_VERBOSE_LLM", "0") in (
             "1",
@@ -109,16 +112,45 @@ class Parser:
         self.pruning_pruned_logs = 0
         self.last_correction_signal = None
         self._fewshot_cache = {}
-        if config['api_key_from_openai'] == '<OpenAI_API_KEY>' and config['api_key_from_together'] == '<Together_API_KEY>':
+        if (
+            not self.is_local_endpoint
+            and config['api_key_from_openai'] == '<OpenAI_API_KEY>'
+            and config['api_key_from_together'] == '<Together_API_KEY>'
+        ):
             raise ValueError("Please provide your OpenAI API key and Together API key in the config.json file.")
-        if 'gpt' in self.model:
+        if self.is_local_endpoint:
+            self.api_key = "EMPTY"
+            self.client = OpenAI(
+                api_key=self.api_key,
+                base_url=self.base_url_override,
+                timeout=self.request_timeout_sec,
+                max_retries=self.client_max_retries,
+            )
+        elif self.base_url_override:
+            if self._is_together_base_url(self.base_url_override):
+                self.api_key = config['api_key_from_together']
+                self.client = Together(
+                    api_key=self.api_key,
+                    base_url=self.base_url_override,
+                    timeout=self.request_timeout_sec,
+                    max_retries=self.client_max_retries,
+                )
+            else:
+                self.api_key = config['api_key_from_openai']
+                self.client = OpenAI(
+                    api_key=self.api_key,
+                    base_url=self.base_url_override,
+                    timeout=self.request_timeout_sec,
+                    max_retries=self.client_max_retries,
+                )
+        elif 'gpt' in self.model_lower:
             self.api_key = config['api_key_from_openai']
             self.client = OpenAI(
                 api_key=self.api_key,
                 timeout=self.request_timeout_sec,
                 max_retries=self.client_max_retries,
             )
-        elif 'r2r' in self.model:
+        elif 'r2r' in self.model_lower:
             self.api_key = "EMPTY"
             self.client = OpenAI(
                 api_key=self.api_key,
@@ -126,7 +158,7 @@ class Parser:
                 timeout=self.request_timeout_sec,
                 max_retries=self.client_max_retries,
             )
-        elif 'qwen-local' in self.model:
+        elif 'qwen-local' in self.model_lower:
             self.api_key = "EMPTY"
             self.client = OpenAI(
                 api_key=self.api_key,
@@ -134,7 +166,7 @@ class Parser:
                 timeout=self.request_timeout_sec,
                 max_retries=self.client_max_retries,
             )
-        elif 'qwen' in self.model:
+        elif 'qwen' in self.model_lower:
             self.api_key = config['api_key_from_openai']
             self.client = OpenAI(
                 api_key=self.api_key,
@@ -149,6 +181,7 @@ class Parser:
             )
         print(
             f"model: {self.model}, base_url: {self.client.base_url}, "
+            f"local_endpoint: {self.is_local_endpoint}, "
             f"request_model: {self.request_model}, "
             f"max_tokens: {self.max_output_tokens}, "
             f"r2r_max_sample_logs: {self.r2r_max_sample_logs}, "
@@ -191,6 +224,24 @@ class Parser:
             return default
         return value.strip().lower() in ("1", "true", "yes", "on")
 
+    @staticmethod
+    def _is_local_base_url(base_url):
+        if not base_url:
+            return False
+        url = base_url if "://" in base_url else f"//{base_url}"
+        parsed = urlparse(url)
+        hostname = (parsed.hostname or "").lower()
+        return hostname in {"localhost", "127.0.0.1", "0.0.0.0", "::1"}
+
+    @staticmethod
+    def _is_together_base_url(base_url):
+        if not base_url:
+            return False
+        url = base_url if "://" in base_url else f"//{base_url}"
+        parsed = urlparse(url)
+        hostname = (parsed.hostname or "").lower()
+        return "together" in hostname
+
     def reset_metrics(self):
         self.token_list = [0, 0]
         self.time_consumption_llm = 0
@@ -221,7 +272,7 @@ class Parser:
 
     def _chat_full_response(self, messages):
         kwargs = {}
-        if "r2r" in self.model:
+        if "r2r" in self.model_lower:
             kwargs["extra_body"] = {
                 "trace_in_content": True,
                 "return_trace": True,
