@@ -51,6 +51,7 @@ class Parser:
         self.r2r_fewshot_k = self._read_int_env(
             "LOGBATCHER_R2R_FEWSHOT_K",
             5,
+            min_value=0,
         )
         default_fewshot_dir = os.path.abspath(
             os.path.join(
@@ -81,6 +82,10 @@ class Parser:
         )
         self.ascii_only_templates = self._read_bool_env(
             "LOGBATCHER_ASCII_ONLY_TEMPLATES",
+            False,
+        )
+        self.r2r_fallback_on_validation_fail = self._read_bool_env(
+            "LOGBATCHER_R2R_FALLBACK_ON_VALIDATION_FAIL",
             False,
         )
         self.request_model = (
@@ -189,6 +194,7 @@ class Parser:
             f"fewshot_sample_dir: {self.fewshot_sample_dir}, "
             f"r2r_template_retry_attempts: {self.r2r_template_retry_attempts}, "
             f"r2r_min_template_coverage: {self.r2r_min_template_coverage}, "
+            f"r2r_fallback_on_validation_fail: {self.r2r_fallback_on_validation_fail}, "
             f"ascii_only_templates: {self.ascii_only_templates}, "
             f"timeout: {self.request_timeout_sec}s, "
             f"attempts: {self.max_attempts}, "
@@ -196,13 +202,13 @@ class Parser:
         )
 
     @staticmethod
-    def _read_int_env(name, default):
+    def _read_int_env(name, default, min_value=1):
         try:
             value = os.environ.get(name)
             if value is None or value.strip() == "":
                 return default
             parsed = int(value)
-            return parsed if parsed > 0 else default
+            return parsed if parsed >= min_value else default
         except (TypeError, ValueError):
             return default
 
@@ -1008,6 +1014,8 @@ class Parser:
         try:
             if "r2r" in self.model:
                 feedback = None
+                validation_succeeded = False
+                last_validation_feedback = None
                 for semantic_attempt in range(1, self.r2r_template_retry_attempts + 1):
                     messages = self._build_r2r_messages(
                         request_logs,
@@ -1077,9 +1085,11 @@ class Parser:
                     self.r2r_token_trace_count += len(current_token_trace)
 
                     if validation["valid"]:
+                        validation_succeeded = True
                         break
 
                     feedback = validation["feedback"]
+                    last_validation_feedback = feedback
                     if semantic_attempt < self.r2r_template_retry_attempts:
                         print(
                             "R2R template validation failed, retry "
@@ -1088,6 +1098,18 @@ class Parser:
                         )
                     else:
                         print(f"R2R template accepted after failed validation: {feedback}")
+                if (
+                    not validation_succeeded
+                    and self.r2r_fallback_on_validation_fail
+                    and sample_log
+                ):
+                    fallback_template = correct_single_template(sample_log)
+                    if fallback_template and verify_template(fallback_template):
+                        print(
+                            "R2R template validation failed after retries; "
+                            f"use sample fallback. Feedback: {last_validation_feedback}"
+                        )
+                        template = fallback_template
                 llm_called = response is not None
             else:
                 answer, latency = self.chat(messages)
